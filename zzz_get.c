@@ -70,27 +70,21 @@ struct wl_registry_listener registry_listener = {
     .global_remove = &registry_remove,
 };
 
-struct sauce_info {
-    char *mime_type;
-    int fd;
-};
-
 void send(void *data, struct zwlr_data_control_source_v1 *sauce, const char *mime_type, int32_t fd) {
-    struct sauce_info *sauce_info = data;
+    int *sauce_fd = data;
     (void) sauce;
     (void) mime_type; // only one offered
-    int fd_clone = dup(sauce_info->fd);
     // TODO get sendfile to work
     // sendfile(sauce_info->fd, fd, NULL, SIZE_MAX);
+    off_t start_pos = lseek(*sauce_fd, 0, SEEK_CUR);
     while (true) {
         char buf[1024];
-        ssize_t n = read(sauce_info->fd, buf, sizeof buf);
+        ssize_t n = read(*sauce_fd, buf, sizeof buf);
         if (n <= 0) break;
         write(fd, buf, n);
     }
     close(fd);
-    close(sauce_info->fd);
-    sauce_info->fd = fd_clone;
+    lseek(*sauce_fd, start_pos, SEEK_SET);
 }
 
 void cancelled(void *data, struct zwlr_data_control_source_v1 *sauce) {
@@ -147,10 +141,8 @@ int main(int argv, char *argc[]) {
     while (read(clipfile, &c, 1) == 1 && c != '\n') mime[mime_len++] = c; // ooh dangerous!
     mime[mime_len] = '\0';
 
-    struct sauce_info sauce_info = {
-        .mime_type = mime,
-        .fd = clipfile,
-    };
+    int *heapfd = malloc(sizeof *heapfd);
+    *heapfd = clipfile;
 
     struct wl_display *display = wl_display_connect(NULL);
     if (display == NULL) {
@@ -175,7 +167,7 @@ int main(int argv, char *argc[]) {
             struct zwlr_data_control_source_v1 *sauce =
                 zwlr_data_control_manager_v1_create_data_source(device_info.dcm);
             zwlr_data_control_source_v1_offer(sauce, mime);
-            zwlr_data_control_source_v1_add_listener(sauce, &sauce_listener, &sauce_info);
+            zwlr_data_control_source_v1_add_listener(sauce, &sauce_listener, heapfd);
             zwlr_data_control_device_v1_set_selection(device_info.device, sauce);
         }
     }

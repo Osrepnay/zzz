@@ -1,4 +1,7 @@
+#define _XOPEN_SOURCE 600
+
 #include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -58,8 +61,8 @@ void zzz_list_reverse(struct zzz_list **list) {
 
 void noop() {}
 
-int clip_fd() {
-    static long zzz_counter = -1;
+int clip_fd(bool new) {
+    static long zzz_counter = -1; // latest file num
     static char *zzz_dir = NULL;
     static size_t zzz_dir_len = 0;
 
@@ -102,21 +105,34 @@ int clip_fd() {
         // find maximum clip number
         struct dirent *file;
         while ((file = readdir(zzz_dir_dir)) != NULL) {
+            // bullshit strtol parses . successfully as 0?
+            if (strcmp(file->d_name, ".") == 0 || strcmp(file->d_name, "..") == 0) {
+                continue;
+            }
             long num = strtol(file->d_name, NULL, 10);
             if (num > zzz_counter) {
                 zzz_counter = num;
             }
         }
-        ++zzz_counter;
     }
 
+    if (new) {
+        ++zzz_counter;
+    } else if (zzz_counter == -1) { // not new, no files found - bad, return -1
+        return -1;
+    }
     char *zzz_file = malloc(zzz_dir_len + snprintf(NULL, 0, "%ld", zzz_counter) + 1);
     zzz_file[0] = '\0';
     strcpy(zzz_file, zzz_dir);
     sprintf(zzz_file + zzz_dir_len, "%ld", zzz_counter);
-    ++zzz_counter;
 
-    int zzz_fd = open(zzz_file, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+
+    int zzz_fd;
+    if (new) {
+        zzz_fd = open(zzz_file, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    } else {
+        zzz_fd = open(zzz_file, O_RDONLY, S_IRUSR);
+    }
     free(zzz_file);
     return zzz_fd;
 }
@@ -143,7 +159,7 @@ struct zzz_list *mime_regexes() {
     FILE *config_file = fopen(config_filename, "r");
     if (config_file == NULL) {
         fprintf(stderr, "config file at %s does not exist, aborting\n", config_filename);
-        exit(3);
+        exit(2);
     }
     struct zzz_list *pcre2_codes = NULL;
     int line = 0;
@@ -187,8 +203,13 @@ struct zzz_list *mime_regexes() {
     return pcre2_codes;
 }
 
+struct config_opts {
+    bool replace;
+    struct zzz_list *mime_precedence;
+};
+
 struct wl_display *display;
-struct zzz_list *config;
+struct config_opts config;
 
 void offer_new_offer(void *data, struct zwlr_data_control_offer_v1 *offer, const char *mime) {
     struct zzz_list **current_mimes = data;
@@ -202,16 +223,29 @@ struct zwlr_data_control_offer_v1_listener offer_listener = {
     .offer = &offer_new_offer,
 };
 
+struct device_info {
+    struct wl_seat *seat;
+    uint32_t seat_name;
+    struct zwlr_data_control_manager_v1 *dcm;
+    uint32_t dcm_name;
+    struct zwlr_data_control_device_v1 *device;
+};
+
+struct device_state {
+    struct device_info *device_info;
+    struct zzz_list *mimes;
+};
+
 void device_offer(void *data, struct zwlr_data_control_device_v1 *device, struct zwlr_data_control_offer_v1 *offer) {
-    struct zzz_list **current_mimes = data;
+    struct device_state *state = data;
     (void) device;
-    zzz_list_free(*current_mimes);
-    *current_mimes = NULL;
-    zwlr_data_control_offer_v1_add_listener(offer, &offer_listener, data);
+    zzz_list_free(state->mimes);
+    state->mimes = NULL;
+    zwlr_data_control_offer_v1_add_listener(offer, &offer_listener, &state->mimes);
 }
 
 int mime_score(const char *mime) {
-    struct zzz_list *config_node = config;
+    struct zzz_list *config_node = config.mime_precedence;
     int i = 0;
     int mime_i = -1;
     int unknown_i = INT_MAX; // deprioritize unknown if not found
@@ -245,12 +279,38 @@ int mime_score(const char *mime) {
     return mime_i < 0 ? unknown_i : mime_i;
 }
 
+void sauce_send(void *data, struct zwlr_data_control_source_v1 *sauce, const char *mime_type, int32_t fd) {
+    int *sauce_fd = data;
+    (void) sauce;
+    (void) mime_type; // only one offered
+    off_t start_pos = lseek(*sauce_fd, 0, SEEK_CUR);
+    while (true) {
+        char buf[1024] = { 0 };
+        ssize_t n = read(*sauce_fd, buf, sizeof buf);
+        if (n <= 0) break;
+        write(fd, buf, n);
+    }
+    close(fd);
+    lseek(*sauce_fd, start_pos, SEEK_SET);
+}
+
+void sauce_cancelled(void *data, struct zwlr_data_control_source_v1 *sauce) {
+    int *fd = data;
+    close(*fd);
+    free(fd);
+    zwlr_data_control_source_v1_destroy(sauce);
+}
+
+struct zwlr_data_control_source_v1_listener sauce_listener = {
+    .send = &sauce_send,
+    .cancelled = &sauce_cancelled,
+};
+
 void device_selection(void *data, struct zwlr_data_control_device_v1 *device, struct zwlr_data_control_offer_v1 *offer) {
-    struct zzz_list **current_mimes = data;
-    (void) device;
+    struct device_state *state = data;
     if (offer != NULL) {
-        zzz_list_reverse(current_mimes);
-        struct zzz_list *current_mimes_node = *current_mimes;
+        zzz_list_reverse(&state->mimes);
+        struct zzz_list *current_mimes_node = state->mimes;
         int chosen_mime_score = INT_MAX;
         char *chosen_mime = NULL;
         while (current_mimes_node != NULL) {
@@ -264,7 +324,7 @@ void device_selection(void *data, struct zwlr_data_control_device_v1 *device, st
         if (chosen_mime == NULL) {
             fputs("no mimetypes were given for selection, ignoring\n", stderr);
         } else {
-            int fd = clip_fd();
+            int fd = clip_fd(true);
             write(fd, chosen_mime, strlen(chosen_mime));
             char newline = '\n';
             write(fd, &newline, 1);
@@ -272,15 +332,31 @@ void device_selection(void *data, struct zwlr_data_control_device_v1 *device, st
             close(fd);
             wl_display_roundtrip(display);
         }
+    } else if (config.replace) { // assume client closed; fill clipboard
+        int tfd = clip_fd(false);
+        if (tfd != -1) {
+            int *fd = malloc(sizeof *fd);
+            *fd = tfd;
+            char mime[256];
+            int mime_len = 0;
+            char c;
+            while (read(*fd, &c, 1) == 1 && c != '\n') mime[mime_len++] = c;
+            mime[mime_len] = '\0';
+            struct zwlr_data_control_source_v1 *sauce =
+                zwlr_data_control_manager_v1_create_data_source(state->device_info->dcm);
+            zwlr_data_control_source_v1_offer(sauce, mime);
+            zwlr_data_control_source_v1_add_listener(sauce, &sauce_listener, fd);
+            zwlr_data_control_device_v1_set_selection(device, sauce);
+        }
     }
 }
 
 void device_finished(void *data, struct zwlr_data_control_device_v1 *device) {
-    // TODO also clear devicein device_info; make global?
-    struct zzz_list **current_mimes = data;
+    struct device_state *state = data;
     zwlr_data_control_device_v1_destroy(device);
-    zzz_list_free(*current_mimes);
-    *current_mimes = NULL;
+    state->device_info->device = NULL;
+    zzz_list_free(state->mimes);
+    state->mimes = NULL;
 }
 
 struct zwlr_data_control_device_v1_listener device_listener = {
@@ -288,15 +364,6 @@ struct zwlr_data_control_device_v1_listener device_listener = {
     .selection = &device_selection,
     .primary_selection = &noop,
     .finished = &device_finished,
-};
-
-// data necessary to get a device
-struct device_info {
-    struct wl_seat *seat;
-    uint32_t seat_name;
-    struct zwlr_data_control_manager_v1 *dcm;
-    uint32_t dcm_name;
-    struct zwlr_data_control_device_v1 *device;
 };
 
 void registry_global(void *data, struct wl_registry *registry, uint32_t name, const char *interface, uint32_t version) {
@@ -309,11 +376,10 @@ void registry_global(void *data, struct wl_registry *registry, uint32_t name, co
     }
     if (device_info->device == NULL && device_info->seat != NULL && device_info->dcm != NULL) {
         device_info->device = zwlr_data_control_manager_v1_get_data_device(device_info->dcm, device_info->seat);
-        zwlr_data_control_device_v1_add_listener(
-            device_info->device,
-            &device_listener,
-            calloc(sizeof(struct zzz_list *), 1)
-        );
+        struct device_state *state = malloc(sizeof *state);
+        state->device_info = device_info;
+        state->mimes = calloc(sizeof(struct zzz_list *), 1);
+        zwlr_data_control_device_v1_add_listener(device_info->device, &device_listener, state);
     }
 }
 
@@ -340,8 +406,30 @@ struct wl_registry_listener registry_listener = {
     .global_remove = &registry_remove,
 };
 
-int main(void) {
-    config = mime_regexes();
+int main(int argc, char *argv[]) {
+    char *help =
+        "usage: zzz [options]\n"
+        "  -h  print this help message\n"
+        "  -r  replace selection when selection is cleared,\n"
+        "      such as when the source application exits\n";
+    config.replace = false;
+    int c;
+    while ((c = getopt(argc, argv, "hr")) != -1) {
+        switch (c) {
+            case '?':
+                fputs(help, stderr);
+                exit(1);
+            case 'h':
+                fputs(help, stdout);
+                exit(0);
+            case 'r':
+                config.replace = true;
+                break;
+            default:
+                break;
+        }
+    }
+    config.mime_precedence = mime_regexes();
     display = wl_display_connect(NULL);
     if (display == NULL) {
         fprintf(stderr, "Failed to connect to Wayland display.\n");

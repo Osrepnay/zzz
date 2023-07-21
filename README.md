@@ -4,7 +4,7 @@ A clipboard manager that supports customizable mimetype selection (e.g. prefer c
 
 To build: `make build`
 
-`build/zzz`: main daemon; listens for clipboard entries and stores them (numbered sequentially) in `$XDG_STATE_HOME/zzz_clip/<number>`
+`build/zzz`: main daemon; listens for clipboard entries and stores them (numbered sequentially) in `$XDG_STATE_HOME/zzz_clip/<number>`. See `-h` for more information
 
 `build/zzz_get`: inserts the clipboard entry given as an integer argument into the selection
 
@@ -18,7 +18,7 @@ Configuration is required at `$XDG_CONFIG_HOME/zzz_mimes`. Each line in `zzz_mim
 
 ## todo
 
-- reinsert clipboard value from closed client
+- remove history duplication when replacing
 - user provided mimetype selection script
 - multiple mimetype selection
 - rofi/dmenu style getter
