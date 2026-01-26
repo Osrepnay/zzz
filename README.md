@@ -1,5 +1,7 @@
 # zzz
 
+## REWRITE IN PROGRESS, LIKELY NONFUNCTIONAL
+
 A clipboard manager that supports customizable mimetype selection (e.g. prefer copying images to html)
 
 To build: `make build`
@@ -14,7 +16,7 @@ Configuration is required at `$XDG_CONFIG_HOME/zzz_mimes`. Each line in `zzz_mim
 
 - wayland client libraries (dev?)
 - libpcre2
-- a compositor that supports wlr\_data\_control
+- a compositor that supports the wlr-data-control protocol
 
 ## todo
 
@@ -24,3 +26,8 @@ Configuration is required at `$XDG_CONFIG_HOME/zzz_mimes`. Each line in `zzz_mim
 - rofi/dmenu style getter
 - history lister
 - better error handling/cleanup
+- support ext-data-control in addition to wlr-data-control
+
+## warning
+
+I don't know what I'm doing w.r.t. Wayland, use at your own risk!

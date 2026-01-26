@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-O0 -Wall -Wextra -std=c99 -g
+CFLAGS=-O0 -Wall -Wextra -Wpedantic -std=c99 -g
 
 .PHONY=run
 
