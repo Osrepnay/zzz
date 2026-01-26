@@ -3,7 +3,7 @@
 #include "zzz_list.h"
 
 struct zzz_list *zzz_list_singleton(void *value) {
-    struct zzz_list *list = malloc(sizeof *list);
+    struct zzz_list *list = malloc(sizeof(*list));
     *list = (struct zzz_list) {
         .value = value,
         .next = NULL,
@@ -22,9 +22,7 @@ void zzz_list_free(struct zzz_list *list) {
 
 void zzz_list_prepend(struct zzz_list **list, void *value) {
     struct zzz_list *new_list = zzz_list_singleton(value);
-    struct zzz_list *list_copy = malloc(sizeof *list_copy);
-    list_copy = *list;
-    new_list->next = list_copy;
+    new_list->next = *list;
     *list = new_list;
 }
 
