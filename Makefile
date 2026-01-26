@@ -5,20 +5,23 @@ CFLAGS=-O0 -Wall -Wextra -Wpedantic -std=c99 -g
 
 build: build/zzz build/zzz_get
 
-build/zzz: main.c wlr-data-control-protocol.o
-	$(CC) $(CFLAGS) -lwayland-client -lpcre2-8 -o build/zzz main.c wlr-data-control-protocol.o
-
-build/zzz_get: zzz_get.c wlr-data-control-protocol.o
-	$(CC) $(CFLAGS) -lwayland-client -o build/zzz_get zzz_get.c wlr-data-control-protocol.o
-
 run: build
 	build/zzz
 
-wlr-data-control-protocol.o: wlr-data-control-protocol.c
-	$(CC) $(CFLAGS) -lwayland-client -c -o wlr-data-control-protocol.o wlr-data-control-protocol.c
+build/zzz: main.c build/wlr-data-control-protocol.o build/zzz_list.o
+	$(CC) $(CFLAGS) -lwayland-client -lpcre2-8 -o build/zzz main.c build/wlr-data-control-protocol.o build/zzz_list.o
 
-wlr-data-control-protocol.c: wlr-data-control-protocol.h protocols/wlr-data-control-unstable-v1.xml
-	wayland-scanner private-code < protocols/wlr-data-control-unstable-v1.xml > wlr-data-control-protocol.c
+build/zzz_get: zzz_get.c build/wlr-data-control-protocol.o
+	$(CC) $(CFLAGS) -lwayland-client -o build/zzz_get zzz_get.c build/wlr-data-control-protocol.o build/zzz_list.o
 
-wlr-data-control-protocol.h: protocols/wlr-data-control-unstable-v1.xml
-	wayland-scanner client-header < protocols/wlr-data-control-unstable-v1.xml > wlr-data-control-protocol.h
+build/zzz_list.o: zzz_list.c zzz_list.h
+	$(CC) $(CFLAGS) -c -o build/zzz_list.o zzz_list.c
+
+build/wlr-data-control-protocol.o: build/wlr-data-control-protocol.c
+	$(CC) $(CFLAGS) -lwayland-client -c -o build/wlr-data-control-protocol.o build/wlr-data-control-protocol.c
+
+build/wlr-data-control-protocol.c: build/wlr-data-control-protocol.h protocols/wlr-data-control-unstable-v1.xml
+	wayland-scanner private-code < protocols/wlr-data-control-unstable-v1.xml > build/wlr-data-control-protocol.c
+
+build/wlr-data-control-protocol.h: protocols/wlr-data-control-unstable-v1.xml
+	wayland-scanner client-header < protocols/wlr-data-control-unstable-v1.xml > build/wlr-data-control-protocol.h

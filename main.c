@@ -15,58 +15,7 @@
 #include <pcre2.h>
 
 #include "wlr-data-control-protocol.h"
-
-struct zzz_list {
-    void *value;
-    struct zzz_list *next;
-};
-
-struct zzz_list *zzz_list_singleton(void *value) {
-    struct zzz_list *list = malloc(sizeof *list);
-    *list = (struct zzz_list) {
-        .value = value,
-        .next = NULL,
-    };
-    return list;
-}
-
-// ! also frees contents !
-void zzz_list_free(struct zzz_list *list) {
-    while (list != NULL) {
-        free(list->value);
-        struct zzz_list *before = list;
-        list = list->next;
-        free(before);
-    }
-}
-
-void zzz_list_prepend(struct zzz_list **list, void *value) {
-    struct zzz_list *new_list = zzz_list_singleton(value);
-    struct zzz_list *list_copy = malloc(sizeof *list_copy);
-    list_copy = *list;
-    new_list->next = list_copy;
-    *list = new_list;
-}
-
-void *zzz_list_tail(struct zzz_list **list) {
-    if (*list == NULL) {
-        return NULL;
-    }
-    void *value = (*list)->value;
-    *list = (*list)->next;
-    return value;
-}
-
-void zzz_list_reverse(struct zzz_list **list) {
-    struct zzz_list *prev = NULL;
-    while (*list != NULL) {
-        struct zzz_list *real_next = (*list)->next;
-        (*list)->next = prev;
-        prev = *list;
-        *list = real_next;
-    }
-    *list = prev;
-}
+#include "zzz_list.h"
 
 struct config_opts {
     bool replace;
@@ -94,11 +43,6 @@ struct registry_objs {
     struct zwlr_data_control_manager_v1 *data_control_manager;
     uint32_t data_control_manager_name;
     struct zwlr_data_control_device_v1 *device;
-};
-
-struct offer_with_mimes {
-    struct zwlr_data_control_offer_v1 *offer;
-    struct zzz_list *mimes;
 };
 
 void source_send(void *data, struct zwlr_data_control_source_v1 *source, const char *mime_type, int32_t fd) {
@@ -158,6 +102,8 @@ void device_selection(void *data, struct zwlr_data_control_device_v1 *device, st
 
         state->selection_offer = state->pending_offer;
         state->selection_offer_mimes = state->pending_offer_mimes;
+        state->pending_offer = NULL;
+        state->pending_offer_mimes = NULL;
 
         // it was prepended to, so do this revert to insertion order
         zzz_list_reverse(&state->selection_offer_mimes);
@@ -192,7 +138,7 @@ void device_selection(void *data, struct zwlr_data_control_device_v1 *device, st
                 ssize_t bytes_read = read(fd[0], buf, sizeof(buf));
                 // + 1 to make space for null-terminator
                 if (text_len + bytes_read + 1 > text_capacity) {
-                    text = realloc(text, text_capacity * 2);
+                    text = realloc(text, text_capacity *= 2);
                 }
                 memcpy(text + text_len, buf, bytes_read);
                 text_len += bytes_read;
@@ -231,6 +177,7 @@ void device_primary_selection(void *data, struct zwlr_data_control_device_v1 *de
 
 void device_finished(void *data, struct zwlr_data_control_device_v1 *device) {
     struct device_state *state = data;
+
     zwlr_data_control_device_v1_destroy(device);
     state->registry_objs->device = NULL;
     zzz_list_free(state->pending_offer_mimes);
