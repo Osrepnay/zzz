@@ -189,7 +189,6 @@ void device_finished(void *data, struct zwlr_data_control_device_v1 *device) {
 struct zwlr_data_control_device_v1_listener device_listener = {
     .data_offer = &device_data_offer,
     .selection = &device_selection,
-    // TODO add so the pending selection can actually be destroyed
     .primary_selection = &device_primary_selection,
     .finished = &device_finished,
 };

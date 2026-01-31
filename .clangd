@@ -1,2 +1,2 @@
 CompileFlags:
-  Add: [-Wall, -Wextra, -std=c99]
+  Add: [-Wall, -Wextra, --std=c99, -Ibuild/include]

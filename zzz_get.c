@@ -28,8 +28,8 @@ struct zwlr_data_control_device_v1_listener device_listener = {
 struct device_info {
     struct wl_seat *seat;
     uint32_t seat_name;
-    struct zwlr_data_control_manager_v1 *dcm;
-    uint32_t dcm_name;
+    struct zwlr_data_control_manager_v1 *data_control_manager;
+    uint32_t data_control_manager_name;
     struct zwlr_data_control_device_v1 *device;
 };
 
@@ -39,10 +39,10 @@ void registry_global(void *data, struct wl_registry *registry, uint32_t name, co
     if (strcmp(interface, wl_seat_interface.name) == 0) {
         device_info->seat = wl_registry_bind(registry, name, &wl_seat_interface, version);
     } else if (strcmp(interface, zwlr_data_control_manager_v1_interface.name) == 0) {
-        device_info->dcm = wl_registry_bind(registry, name, &zwlr_data_control_manager_v1_interface, version);
+        device_info->data_control_manager = wl_registry_bind(registry, name, &zwlr_data_control_manager_v1_interface, version);
     }
-    if (device_info->device == NULL && device_info->seat != NULL && device_info->dcm != NULL) {
-        device_info->device = zwlr_data_control_manager_v1_get_data_device(device_info->dcm, device_info->seat);
+    if (device_info->device == NULL && device_info->seat != NULL && device_info->data_control_manager != NULL) {
+        device_info->device = zwlr_data_control_manager_v1_get_data_device(device_info->data_control_manager, device_info->seat);
         zwlr_data_control_device_v1_add_listener(device_info->device, &device_listener, NULL);
     }
 }
@@ -56,9 +56,9 @@ void registry_remove(void *data, struct wl_registry *registry, uint32_t name) {
         if (device_info->device != NULL) {
             zwlr_data_control_device_v1_destroy(device_info->device);
         }
-    } else if (name == device_info->dcm_name) {
-        zwlr_data_control_manager_v1_destroy(device_info->dcm);
-        device_info->dcm = NULL;
+    } else if (name == device_info->data_control_manager_name) {
+        zwlr_data_control_manager_v1_destroy(device_info->data_control_manager);
+        device_info->data_control_manager = NULL;
         if (device_info->device != NULL) {
             zwlr_data_control_device_v1_destroy(device_info->device);
         }
@@ -154,8 +154,8 @@ int main(int argv, char *argc[]) {
     struct device_info device_info = {
         .seat = NULL,
         .seat_name = 0,
-        .dcm = NULL,
-        .dcm_name = 0,
+        .data_control_manager = NULL,
+        .data_control_manager_name = 0,
         .device = NULL
     };
     wl_registry_add_listener(registry, &registry_listener, &device_info);
@@ -165,7 +165,7 @@ int main(int argv, char *argc[]) {
         if (device_info.device != NULL && !created) {
             created = true;
             struct zwlr_data_control_source_v1 *sauce =
-                zwlr_data_control_manager_v1_create_data_source(device_info.dcm);
+                zwlr_data_control_manager_v1_create_data_source(device_info.data_control_manager);
             zwlr_data_control_source_v1_offer(sauce, mime);
             zwlr_data_control_source_v1_add_listener(sauce, &sauce_listener, heapfd);
             zwlr_data_control_device_v1_set_selection(device_info.device, sauce);
