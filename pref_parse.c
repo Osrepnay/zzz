@@ -22,19 +22,7 @@ bool try_char(struct parse_state *state, char c) {
     }
 }
 
-bool take_whitespace(struct parse_state *state) {
-    bool took = false;
-    // whitespace is not comprehensive but in what serious scenario
-    // are you gonna have anything else in your config file
-    while (!is_eof(state)
-            && (try_char(state, ' ')
-                || try_char(state, '\n')
-                || try_char(state, '\r')
-                || try_char(state, '\t'))) {
-        took = true;
-    };
-    return took;
-}
+static char *whitespace = " \n\r\t";
 
 bool string_contains(char *str, char c) {
     while (*str != '\0') {
@@ -46,11 +34,23 @@ bool string_contains(char *str, char c) {
     return false;
 }
 
-bool try_string(struct parse_state *state, char **string_ret) {
-    if (is_eof(state)) return false;
+bool take_whitespace(struct parse_state *state) {
+    bool took = false;
+    // whitespace is not comprehensive but in what serious scenario
+    // are you gonna have anything else in your config file
+    while (!is_eof(state) && string_contains(whitespace, peek_char(state))) {
+        took = true;
+        state->idx++;
+    };
+    return took;
+}
 
+
+bool try_string(struct parse_state *state, char **string_ret) {
     size_t string_len = 0;
-    while (!is_eof(state) && !take_whitespace(state) && !string_contains("[]()", peek_char(state))) {
+    while (!is_eof(state)
+            && !string_contains("[]()", peek_char(state))
+            && !string_contains(whitespace, peek_char(state))) {
         string_len++;
         state->idx++;
     }
@@ -58,8 +58,9 @@ bool try_string(struct parse_state *state, char **string_ret) {
         return false;
     } else {
         *string_ret = malloc(string_len + 1);
-        memcpy(*string_ret, state->text + state->idx - string_len - 1, string_len);
+        memcpy(*string_ret, state->text + state->idx - string_len, string_len);
         (*string_ret)[string_len] = '\0';
+        take_whitespace(state);
         return true;
     }
 }
@@ -67,7 +68,8 @@ bool try_string(struct parse_state *state, char **string_ret) {
 void free_pref(struct mime_pref *prefs) {
     switch (prefs->type) {
         case SINGLE_MIME:
-            free(prefs->inner.regex);
+            pcre2_code_free(prefs->inner.regex.code);
+            pcre2_match_data_free(prefs->inner.regex.match_data);
             break;
         case STORE_ALL_MATCHING:
         case STORE_FIRST_MATCHING:
@@ -88,8 +90,8 @@ bool try_mime_pref(struct parse_state *, struct mime_pref *);
 
 // pref with specific parenthesis type
 bool try_paren_pref(struct parse_state *state, char *paren_chars, struct zzz_list **subprefs) {
-    if (!try_char(state, paren_chars[0])) return false;
     size_t starting_idx = state->idx;
+    if (!try_char(state, paren_chars[0])) return false;
     take_whitespace(state);
 
     *subprefs = NULL;
@@ -119,7 +121,6 @@ bool try_paren_pref(struct parse_state *state, char *paren_chars, struct zzz_lis
 bool try_mime_pref(struct parse_state *state, struct mime_pref *mime_pref) {
     struct zzz_list *subprefs;
     char *regex;
-    // must go first because try_string WILL try to eat parens
     if (try_paren_pref(state, "[]", &subprefs)) {
         *mime_pref = (struct mime_pref) {
             .type = STORE_ALL_MATCHING,
@@ -131,9 +132,21 @@ bool try_mime_pref(struct parse_state *state, struct mime_pref *mime_pref) {
             .inner.subprefs = subprefs,
         };
     } else if (try_string(state, &regex)) {
+        int err_code;
+        size_t err_offset;
+        pcre2_code *compiled_regex = pcre2_compile(
+                (PCRE2_SPTR8)regex,
+                PCRE2_ZERO_TERMINATED,
+                PCRE2_CASELESS | PCRE2_ANCHORED | PCRE2_ENDANCHORED,
+                &err_code, &err_offset, NULL
+        );
+        pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(compiled_regex, NULL);
         *mime_pref = (struct mime_pref) {
             .type = SINGLE_MIME,
-            .inner.regex = regex,
+            .inner.regex = (struct regex_with_match_data) {
+                .code = compiled_regex,
+                .match_data = match_data,
+            },
         };
     } else {
         return false;

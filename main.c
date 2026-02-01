@@ -264,7 +264,14 @@ int main(int argc, char *argv[]) {
     }
 
     struct mime_pref pref = get_config();
-    (void)pref;
+    struct zzz_list *test = NULL;
+    zzz_list_prepend(&test, "image/png");
+    zzz_list_prepend(&test, "image/fart");
+    zzz_list_prepend(&test, "a");
+    zzz_list_prepend(&test, "goongoongoon");
+    zzz_list_prepend(&test, "UTF8_STRING");
+    struct zzz_list *res = matching_mimes(pref, test);
+    (void)res;
 
     display = wl_display_connect(NULL);
     if (display == NULL) {

@@ -45,3 +45,14 @@ void zzz_list_reverse(struct zzz_list **list) {
     }
     *list = reversed;
 }
+
+// only copies structure, pointers are not copied
+struct zzz_list *zzz_list_copy(struct zzz_list *list) {
+    struct zzz_list *copy = NULL;
+    while (list != NULL) {
+        zzz_list_prepend(&copy, list->value);
+        list = list->next;
+    }
+    zzz_list_reverse(&copy);
+    return copy;
+}
