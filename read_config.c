@@ -35,17 +35,18 @@ char *config_path(void) {
 struct mime_pref get_config(void) {
     char *path = config_path();
     int config_fd = open(path, O_RDWR);
+    free(path);
 
     if (config_fd >= 0) {
-        size_t chunk_size = 1024;
+        size_t chunk_size = 1;
         size_t config_text_cap = chunk_size + 1;
         size_t config_text_len = 0;
-        char *config_text = malloc(config_text_cap + 1);
+        char *config_text = malloc(config_text_cap);
         while (true) {
             if (config_text_len + chunk_size + 1 > config_text_cap) {
                 config_text = realloc(config_text, config_text_cap *= 2);
             }
-            ssize_t bytes_read = read(config_fd, config_text, chunk_size);
+            ssize_t bytes_read = read(config_fd, config_text + config_text_len, chunk_size);
             config_text_len += bytes_read;
             if (bytes_read != (ssize_t)chunk_size) {
                 break;
@@ -56,6 +57,7 @@ struct mime_pref get_config(void) {
 
         struct mime_pref pref;
         if (parse_mime_prefs(config_text, &pref)) {
+            free(config_text);
             return pref;
         } else {
             fputs("corrupt config file\n", stderr);

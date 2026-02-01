@@ -50,21 +50,16 @@ bool try_string(struct parse_state *state, char **string_ret) {
     if (is_eof(state)) return false;
 
     size_t string_len = 0;
-    size_t string_cap = 32;
-    char *string = malloc(string_cap);
     while (!is_eof(state) && !take_whitespace(state) && !string_contains("[]()", peek_char(state))) {
-        if (string_len + 1 >= string_cap) {
-            string = realloc(string, string_cap *= 2);
-        }
-        char c = state->text[state->idx++];
-        string[string_len++] = c;
+        string_len++;
+        state->idx++;
     }
     if (string_len == 0) {
-        free(string);
         return false;
     } else {
-        string[string_len] = '\0';
-        *string_ret = string;
+        *string_ret = malloc(string_len + 1);
+        memcpy(*string_ret, state->text + state->idx - string_len - 1, string_len);
+        (*string_ret)[string_len] = '\0';
         return true;
     }
 }
@@ -98,12 +93,12 @@ bool try_paren_pref(struct parse_state *state, char *paren_chars, struct zzz_lis
     take_whitespace(state);
 
     *subprefs = NULL;
-    struct mime_pref *curr_subpref = malloc(sizeof(*curr_subpref));
-    while (try_mime_pref(state, curr_subpref)) {
-        zzz_list_prepend(subprefs, curr_subpref);
-        curr_subpref = malloc(sizeof(*curr_subpref));
+    struct mime_pref curr_subpref;
+    while (try_mime_pref(state, &curr_subpref)) {
+        struct mime_pref *allocated = malloc(sizeof(*allocated));
+        *allocated = curr_subpref;
+        zzz_list_prepend(subprefs, allocated);
     }
-    free_pref(curr_subpref);
     zzz_list_reverse(subprefs);
 
     if (try_char(state, paren_chars[1])) {
