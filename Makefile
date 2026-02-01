@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-O0 -Ibuild/include -Wall -Wextra -Wpedantic -std=c99 -g
+CFLAGS=-O0 -Ibuild/include -Wall -Wextra -Wpedantic -std=c99 -g -fsanitize=address
 
 .PHONY=run clean
 
