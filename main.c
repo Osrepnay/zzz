@@ -20,6 +20,7 @@
 
 struct config_opts {
     bool replace;
+    struct mime_pref pref;
 };
 
 struct wl_display *display;
@@ -46,17 +47,40 @@ struct registry_objs {
     struct zwlr_data_control_device_v1 *device;
 };
 
+struct clip_item {
+    char *mime;
+    char *data;
+    size_t len;
+};
+
+void free_clip_item_void(void *clip_item_void) {
+    struct clip_item *clip_item = clip_item_void;
+    free(clip_item->mime);
+    free(clip_item->data);
+    free(clip_item);
+}
+
 void source_send(void *data, struct zwlr_data_control_source_v1 *source, const char *mime_type, int32_t fd) {
     (void) source;
     (void) mime_type;
-    char *text = data;
-    // TODO partial writes?
-    write(fd, text, strlen(text));
+    struct zzz_list *items = data;
+    while (items != NULL) {
+        struct clip_item *item = items->value;
+        if (strcmp(item->mime, mime_type) == 0) {
+            // TODO partial writes?
+            write(fd, item->data, item->len);
+            break;
+        }
+
+        items = items->next;
+    }
+    // close without sending if invalid mime type
     close(fd);
 }
 
 void source_cancelled(void *data, struct zwlr_data_control_source_v1 *source) {
-    free(data);
+    struct zzz_list *items = data;
+    zzz_list_free(items, free_clip_item_void);
     zwlr_data_control_source_v1_destroy(source);
 }
 
@@ -72,8 +96,9 @@ struct device_state {
     struct zzz_list *pending_offer_mimes;
     struct zwlr_data_control_offer_v1 *selection_offer;
     struct zzz_list *selection_offer_mimes;
-    // text from the last valid selection offer
-    char *saved_text;
+    // data from the last valid selection offer
+    // list of clip_items
+    struct zzz_list *saved_items;
 };
 
 void device_data_offer(void *data, struct zwlr_data_control_device_v1 *device, struct zwlr_data_control_offer_v1 *offer) {
@@ -92,9 +117,10 @@ void device_selection(void *data, struct zwlr_data_control_device_v1 *device, st
     if (state->selection_offer != NULL) {
         zwlr_data_control_offer_v1_destroy(state->selection_offer);
         state->selection_offer = NULL;
-        zzz_list_free(state->selection_offer_mimes);
+        zzz_list_free(state->selection_offer_mimes, free);
     }
 
+    // not a clipboard clear
     if (offer != NULL) {
         if (state->pending_offer == NULL || state->pending_offer != offer) {
             fputs("selection given before offer\n", stderr);
@@ -109,58 +135,64 @@ void device_selection(void *data, struct zwlr_data_control_device_v1 *device, st
         // it was prepended to, so do this revert to insertion order
         zzz_list_reverse(&state->selection_offer_mimes);
 
-        bool found_text = false;
-        struct zzz_list *current_mime_node = state->selection_offer_mimes;
-        while (current_mime_node != NULL) {
-            if (strcmp(current_mime_node->value, "UTF8_STRING") == 0) {
-                found_text = true;
-            }
-            current_mime_node = current_mime_node->next;
+        // save ones we care about
+        struct zzz_list *mimes_to_save = matching_mimes(config.pref, state->selection_offer_mimes);
+        // normally this would be done when we make the source but if the clip is never cleared
+        // we need to free
+        if (mimes_to_save != NULL && state->saved_items != NULL) {
+            zzz_list_free(state->saved_items, free_clip_item_void);
+            state->saved_items = NULL;
         }
-
-        if (found_text) {
-            // free old one
-            if (state->saved_text != NULL) {
-                free(state->saved_text);
-                state->saved_text = NULL;
-            }
-
+        struct zzz_list *curr_mime = mimes_to_save;
+        while (curr_mime != NULL) {
             int fd[2];
             pipe(fd);
-            zwlr_data_control_offer_v1_receive(offer, "UTF8_STRING", fd[1]);
+            zwlr_data_control_offer_v1_receive(offer, curr_mime->value, fd[1]);
             close(fd[1]);
             wl_display_roundtrip(display);
 
-            size_t text_capacity = 1024;
-            size_t text_len = 0;
-            char *text = malloc(text_capacity);
-            char buf[1024];
+            size_t chunk_size = 1024;
+            size_t data_capacity = chunk_size;
+            size_t data_len = 0;
+            char *data = malloc(data_capacity);
             while (true) {
-                ssize_t bytes_read = read(fd[0], buf, sizeof(buf));
-                // + 1 to make space for null-terminator
-                if (text_len + bytes_read + 1 > text_capacity) {
-                    text = realloc(text, text_capacity *= 2);
+                if (data_len + chunk_size > data_capacity) {
+                    data = realloc(data, data_capacity *= 2);
                 }
-                memcpy(text + text_len, buf, bytes_read);
-                text_len += bytes_read;
-                if (bytes_read != sizeof(buf)) {
+                ssize_t bytes_read = read(fd[0], data + data_len, chunk_size);
+                data_len += bytes_read;
+                if (bytes_read != (ssize_t)chunk_size) {
                     break;
                 }
             }
-            text[text_len] = '\0';
             close(fd[0]);
+            struct clip_item *item = malloc(sizeof(*item));
+            *item = (struct clip_item) {
+                .mime = strdup(curr_mime->value),
+                .data = data,
+                .len = data_len,
+            };
+            zzz_list_prepend(&state->saved_items, item);
 
-            state->saved_text = text;
+            curr_mime = curr_mime->next;
         }
-    } else if (state->saved_text != NULL) {
-         // assume client closed; fill clipboard
-        if (config.replace) {
-            struct zwlr_data_control_source_v1 *source =
-                zwlr_data_control_manager_v1_create_data_source(state->registry_objs->data_control_manager);
-            zwlr_data_control_source_v1_offer(source, "UTF8_STRING");
-            zwlr_data_control_source_v1_add_listener(source, &source_listener, strdup(state->saved_text));
-            zwlr_data_control_device_v1_set_selection(device, source);
+        // don't free strings because they are from selection_offer_mimes
+        zzz_list_free(mimes_to_save, NULL);
+    } else if (config.replace && state->saved_items != NULL) {
+        // assume client closed; fill clipboard
+        struct zwlr_data_control_source_v1 *source =
+            zwlr_data_control_manager_v1_create_data_source(state->registry_objs->data_control_manager);
+        struct zzz_list *curr_saved_item = state->saved_items;
+        while (curr_saved_item != NULL) {
+            struct clip_item *item = curr_saved_item->value;
+            zwlr_data_control_source_v1_offer(source, item->mime);
+
+            curr_saved_item = curr_saved_item->next;
         }
+        zwlr_data_control_source_v1_add_listener(source, &source_listener, state->saved_items);
+        zwlr_data_control_device_v1_set_selection(device, source);
+        // this is now the source's responsibility, freed on cancelled event
+        state->saved_items = NULL;
     }
 }
 
@@ -172,7 +204,7 @@ void device_primary_selection(void *data, struct zwlr_data_control_device_v1 *de
     if (offer != NULL && offer == state->pending_offer) {
         zwlr_data_control_offer_v1_destroy(state->pending_offer);
         state->pending_offer = NULL;
-        zzz_list_free(state->pending_offer_mimes);
+        zzz_list_free(state->pending_offer_mimes, free);
     }
 }
 
@@ -181,8 +213,8 @@ void device_finished(void *data, struct zwlr_data_control_device_v1 *device) {
 
     zwlr_data_control_device_v1_destroy(device);
     state->registry_objs->device = NULL;
-    zzz_list_free(state->pending_offer_mimes);
-    zzz_list_free(state->selection_offer_mimes);
+    zzz_list_free(state->pending_offer_mimes, free);
+    zzz_list_free(state->selection_offer_mimes, free);
     if (state->pending_offer != NULL) zwlr_data_control_offer_v1_destroy(state->pending_offer);
     if (state->selection_offer != NULL) zwlr_data_control_offer_v1_destroy(state->selection_offer);
 }
@@ -264,14 +296,7 @@ int main(int argc, char *argv[]) {
     }
 
     struct mime_pref pref = get_config();
-    struct zzz_list *test = NULL;
-    zzz_list_prepend(&test, "image/png");
-    zzz_list_prepend(&test, "image/fart");
-    zzz_list_prepend(&test, "a");
-    zzz_list_prepend(&test, "goongoongoon");
-    zzz_list_prepend(&test, "UTF8_STRING");
-    struct zzz_list *res = matching_mimes(pref, test);
-    (void)res;
+    config.pref = pref;
 
     display = wl_display_connect(NULL);
     if (display == NULL) {

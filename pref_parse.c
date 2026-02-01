@@ -65,6 +65,12 @@ bool try_string(struct parse_state *state, char **string_ret) {
     }
 }
 
+void free_pref(struct mime_pref *);
+
+void free_pref_void(void *prefs) {
+    free_pref(prefs);
+}
+
 void free_pref(struct mime_pref *prefs) {
     switch (prefs->type) {
         case SINGLE_MIME:
@@ -72,16 +78,9 @@ void free_pref(struct mime_pref *prefs) {
             pcre2_match_data_free(prefs->inner.regex.match_data);
             break;
         case STORE_ALL_MATCHING:
-        case STORE_FIRST_MATCHING:
-            {
-                while (prefs->inner.subprefs != NULL) {
-                    free_pref(prefs->inner.subprefs->value);
-                    struct zzz_list *tmp = prefs->inner.subprefs;
-                    prefs->inner.subprefs = prefs->inner.subprefs->next;
-                    free(tmp);
-                }
-                break;
-            }
+        case STORE_FIRST_MATCHING: {
+            zzz_list_free(prefs->inner.subprefs, free_pref_void);
+        }
     }
     free(prefs);
 }
@@ -107,12 +106,7 @@ bool try_paren_pref(struct parse_state *state, char *paren_chars, struct zzz_lis
         take_whitespace(state);
         return true;
     } else {
-        while (*subprefs != NULL) {
-            free_pref((*subprefs)->value);
-            struct zzz_list *tmp = *subprefs;
-            *subprefs = (*subprefs)->next;
-            free(tmp);
-        }
+        zzz_list_free(*subprefs, free_pref_void);
         state->idx = starting_idx;
         return false;
     }

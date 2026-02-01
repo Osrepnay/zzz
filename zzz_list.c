@@ -11,9 +11,11 @@ struct zzz_list *zzz_list_singleton(void *value) {
     return list;
 }
 
-void zzz_list_free(struct zzz_list *list) {
+void zzz_list_free(struct zzz_list *list, void free_func(void *)) {
     while (list != NULL) {
-        free(list->value);
+        if (free_func != NULL) {
+            free_func(list->value);
+        }
         struct zzz_list *before = list;
         list = list->next;
         free(before);
