@@ -11,11 +11,17 @@ run: build
 clean:
 	rm -r build/*
 
-build/zzz: main.c build/wlr-data-control-protocol.o build/zzz_list.o
-	$(CC) $(CFLAGS) -lwayland-client -lpcre2-8 -o build/zzz main.c build/wlr-data-control-protocol.o build/zzz_list.o
+build/zzz: main.c build/wlr-data-control-protocol.o build/zzz_list.o build/read_config.o build/pref_parse.o
+	$(CC) $(CFLAGS) -lwayland-client -lpcre2-8 -o build/zzz main.c build/wlr-data-control-protocol.o build/zzz_list.o build/read_config.o build/pref_parse.o
 
 build/zzz_get: zzz_get.c build/wlr-data-control-protocol.o
 	$(CC) $(CFLAGS) -lwayland-client -o build/zzz_get zzz_get.c build/wlr-data-control-protocol.o build/zzz_list.o
+
+build/read_config.o: read_config.c read_config.h
+	$(CC) $(CFLAGS) -c -o build/read_config.o read_config.c
+
+build/pref_parse.o: pref_parse.c pref_parse.h
+	$(CC) $(CFLAGS) -c -o build/pref_parse.o pref_parse.c
 
 build/zzz_list.o: zzz_list.c zzz_list.h
 	$(CC) $(CFLAGS) -c -o build/zzz_list.o zzz_list.c

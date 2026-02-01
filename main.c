@@ -14,6 +14,7 @@
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include <pcre2.h>
 
+#include "read_config.h"
 #include "wlr-data-control-protocol.h"
 #include "zzz_list.h"
 
@@ -261,6 +262,10 @@ int main(int argc, char *argv[]) {
                 break;
         }
     }
+
+    struct mime_pref pref = get_config();
+    (void)pref;
+
     display = wl_display_connect(NULL);
     if (display == NULL) {
         fprintf(stderr, "Failed to connect to Wayland display.\n");

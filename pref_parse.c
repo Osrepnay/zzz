@@ -8,9 +8,13 @@ bool is_eof(struct parse_state *state) {
     return state->idx >= state->text_len;
 }
 
+char peek_char(struct parse_state *state) {
+    if (is_eof(state)) return '\0';
+    return state->text[state->idx];
+}
+
 bool try_char(struct parse_state *state, char c) {
-    if (is_eof(state)) return false;
-    if (state->text[state->idx] == c) {
+    if (peek_char(state) == c) {
         state->idx++;
         return true;
     } else {
@@ -22,14 +26,24 @@ bool take_whitespace(struct parse_state *state) {
     bool took = false;
     // whitespace is not comprehensive but in what serious scenario
     // are you gonna have anything else in your config file
-    while (!(is_eof(state)
-            || try_char(state, ' ')
-            || try_char(state, '\n')
-            || try_char(state, '\r')
-            || try_char(state, '\t'))) {
+    while (!is_eof(state)
+            && (try_char(state, ' ')
+                || try_char(state, '\n')
+                || try_char(state, '\r')
+                || try_char(state, '\t'))) {
         took = true;
     };
     return took;
+}
+
+bool string_contains(char *str, char c) {
+    while (*str != '\0') {
+        if (*str == c) {
+            return true;
+        }
+        str++;
+    }
+    return false;
 }
 
 bool try_string(struct parse_state *state, char **string_ret) {
@@ -38,7 +52,7 @@ bool try_string(struct parse_state *state, char **string_ret) {
     size_t string_len = 0;
     size_t string_cap = 32;
     char *string = malloc(string_cap);
-    while (!is_eof(state) && !take_whitespace(state)) {
+    while (!is_eof(state) && !take_whitespace(state) && !string_contains("[]()", peek_char(state))) {
         if (string_len + 1 >= string_cap) {
             string = realloc(string, string_cap *= 2);
         }
@@ -55,7 +69,7 @@ bool try_string(struct parse_state *state, char **string_ret) {
     }
 }
 
-void free_prefs(struct mime_pref *prefs) {
+void free_pref(struct mime_pref *prefs) {
     switch (prefs->type) {
         case SINGLE_MIME:
             free(prefs->inner.regex);
@@ -64,7 +78,7 @@ void free_prefs(struct mime_pref *prefs) {
         case STORE_FIRST_MATCHING:
             {
                 while (prefs->inner.subprefs != NULL) {
-                    free_prefs(prefs->inner.subprefs->value);
+                    free_pref(prefs->inner.subprefs->value);
                     struct zzz_list *tmp = prefs->inner.subprefs;
                     prefs->inner.subprefs = prefs->inner.subprefs->next;
                     free(tmp);
@@ -87,14 +101,17 @@ bool try_paren_pref(struct parse_state *state, char *paren_chars, struct zzz_lis
     struct mime_pref *curr_subpref = malloc(sizeof(*curr_subpref));
     while (try_mime_pref(state, curr_subpref)) {
         zzz_list_prepend(subprefs, curr_subpref);
+        curr_subpref = malloc(sizeof(*curr_subpref));
     }
+    free_pref(curr_subpref);
     zzz_list_reverse(subprefs);
 
-    if (try_char(state, paren_chars[1])) { take_whitespace(state);
+    if (try_char(state, paren_chars[1])) {
+        take_whitespace(state);
         return true;
     } else {
         while (*subprefs != NULL) {
-            free_prefs((*subprefs)->value);
+            free_pref((*subprefs)->value);
             struct zzz_list *tmp = *subprefs;
             *subprefs = (*subprefs)->next;
             free(tmp);

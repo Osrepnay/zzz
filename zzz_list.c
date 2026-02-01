@@ -36,12 +36,12 @@ void *zzz_list_tail(struct zzz_list **list) {
 }
 
 void zzz_list_reverse(struct zzz_list **list) {
-    struct zzz_list *prev = NULL;
+    struct zzz_list *reversed = NULL;
     while (*list != NULL) {
         struct zzz_list *real_next = (*list)->next;
-        (*list)->next = prev;
-        prev = *list;
+        (*list)->next = reversed;
+        reversed = *list;
         *list = real_next;
     }
-    *list = prev;
+    *list = reversed;
 }

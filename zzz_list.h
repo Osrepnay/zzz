@@ -1,3 +1,6 @@
+#ifndef ZZZ_LIST_H
+#define ZZZ_LIST_H
+
 struct zzz_list {
     void *value;
     struct zzz_list *next;
@@ -9,3 +12,5 @@ void zzz_list_free(struct zzz_list *);
 void zzz_list_prepend(struct zzz_list **, void *);
 void *zzz_list_tail(struct zzz_list **);
 void zzz_list_reverse(struct zzz_list **);
+
+#endif
