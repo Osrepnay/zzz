@@ -9,9 +9,9 @@
 #include "read_config.h"
 
 char *config_path(void) {
-    char *xdg_state_home = getenv("XDG_STATE_HOME");
+    char *xdg_config_home = getenv("XDG_CONFIG_HOME");
     char *filename = "/zzzclip";
-    if (xdg_state_home == NULL) {
+    if (xdg_config_home == NULL) {
         char *home = getenv("HOME");
         if (home == NULL) {
             fputs("no $HOME, aborting\n", stderr);
@@ -24,9 +24,9 @@ char *config_path(void) {
         strcat(final, filename);
         return final;
     } else {
-        char *final = malloc(strlen(xdg_state_home) + strlen(filename) + 1);
+        char *final = malloc(strlen(xdg_config_home) + strlen(filename) + 1);
         final[0] = '\0';
-        strcat(final, xdg_state_home);
+        strcat(final, xdg_config_home);
         strcat(final, filename);
         return final;
     }
@@ -46,10 +46,12 @@ struct mime_pref get_config(void) {
                 config_text = realloc(config_text, config_text_cap *= 2);
             }
             ssize_t bytes_read = read(config_fd, config_text, chunk_size);
+            config_text_len += bytes_read;
             if (bytes_read != (ssize_t)chunk_size) {
                 break;
             }
         }
+        close(config_fd);
         config_text[config_text_len] = '\0';
 
         struct mime_pref pref;
