@@ -4,17 +4,17 @@
 #include "zzz_list.h"
 
 enum mime_pref_type {
-	SINGLE_MIME,
-	STORE_FIRST_MATCHING,
-	STORE_ALL_MATCHING,
+    SINGLE_MIME,
+    STORE_FIRST_MATCHING,
+    STORE_ALL_MATCHING,
 };
 
 struct mime_pref {
-	enum mime_pref_type type;
-	union {
-		char *regex;
-		struct zzz_list *subprefs;
-	} inner;
+    enum mime_pref_type type;
+    union {
+        char *regex;
+        struct zzz_list *subprefs;
+    } inner;
 };
 
 struct parse_state {
