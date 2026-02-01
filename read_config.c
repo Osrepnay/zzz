@@ -97,6 +97,8 @@ struct zzz_list *matching_mimes(struct mime_pref pref, struct zzz_list *availabl
                 struct zzz_list *subpref_matching = matching_mimes(*subpref, available_mimes);
                 if (subpref_matching != NULL) {
                     return subpref_matching;
+                } else {
+                    zzz_list_free(subpref_matching, NULL);
                 }
                 curr_subpref = curr_subpref->next;
             }
@@ -111,22 +113,27 @@ struct zzz_list *matching_mimes(struct mime_pref pref, struct zzz_list *availabl
             while (curr_subpref != NULL) {
                 struct mime_pref *subpref = curr_subpref->value;
                 struct zzz_list *subpref_matching = matching_mimes(*subpref, remaining_mimes);
-                while (subpref_matching != NULL) {
+                struct zzz_list *curr_subpref_matching = subpref_matching;
+                while (curr_subpref_matching != NULL) {
                     // cull from remaining_mimes list
                     struct zzz_list **curr_remaining = &remaining_mimes;
                     while (*curr_remaining != NULL) {
-                        if ((*curr_remaining)->value == subpref_matching->value) {
-                            *curr_remaining = (*curr_remaining)->next;
+                        if ((*curr_remaining)->value == curr_subpref_matching->value) {
+                            struct zzz_list *next = (*curr_remaining)->next;
+                            free(*curr_remaining);
+                            *curr_remaining = next;
                             break;
                         } else {
                             curr_remaining = &(*curr_remaining)->next;
                         }
                     }
-                    zzz_list_prepend(&all_matching, subpref_matching->value);
-                    subpref_matching = subpref_matching->next;
+                    zzz_list_prepend(&all_matching, curr_subpref_matching->value);
+                    curr_subpref_matching = curr_subpref_matching->next;
                 }
+                zzz_list_free(subpref_matching, NULL);
                 curr_subpref = curr_subpref->next;
             }
+            zzz_list_free(remaining_mimes, NULL);
             zzz_list_reverse(&all_matching);
             return all_matching;
         }

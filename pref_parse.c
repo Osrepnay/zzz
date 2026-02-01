@@ -135,6 +135,7 @@ bool try_mime_pref(struct parse_state *state, struct mime_pref *mime_pref) {
                 &err_code, &err_offset, NULL
         );
         pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(compiled_regex, NULL);
+        free(regex);
         *mime_pref = (struct mime_pref) {
             .type = SINGLE_MIME,
             .inner.regex = (struct regex_with_match_data) {
