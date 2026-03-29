@@ -1,4 +1,4 @@
-#define _XOPEN_SOURCE 500
+#define _XOPEN_SOURCE 600
 
 #include <dirent.h>
 #include <fcntl.h>
@@ -89,43 +89,14 @@ struct zwlr_data_control_source_v1_listener source_listener = {
     .cancelled = &source_cancelled
 };
 
-struct full_offer {
-    struct zwlr_data_control_offer_v1 *offer;
-    struct zzz_list *mimes;
-};
-
-// for zzz_list_free
-void free_full_offer_void(void *full_offer_void) {
-    struct full_offer *full_offer = full_offer_void;
-    zwlr_data_control_offer_v1_destroy(full_offer->offer);
-    zzz_list_free(full_offer->mimes, free);
-    free(full_offer);
-}
-
-bool full_offers_remove(struct zzz_list **list, struct zwlr_data_control_offer_v1 *offer, struct full_offer *removed) {
-    if (offer == NULL) return false;
-    struct zzz_list *curr = *list;
-    struct zzz_list **curr_ptr = list;
-    while (curr != NULL) {
-        // TODO is this legal? (comparing pointers for wl objects)
-        struct full_offer *full_offer = curr->value;
-        if (full_offer->offer == offer) {
-            *curr_ptr = curr->next;
-            free(curr);
-            *removed = *full_offer;
-            free(full_offer);
-            return true;
-        }
-        curr_ptr = &curr->next;
-        curr = curr->next;
-    }
-    return false;
-}
-
 struct device_state {
     struct registry_objs *registry_objs;
-    // offers that have not been set to primary/selection yet
-    struct zzz_list *pending_offers;
+    // offer that has not been set to primary/selection yet
+    struct zwlr_data_control_offer_v1 *pending_offer;
+    struct zzz_list *pending_offer_mimes;
+    struct zwlr_data_control_offer_v1 *selection_offer;
+    struct zzz_list *selection_offer_mimes;
+    // data from the last valid selection offer
     // list of clip_items
     struct zzz_list *saved_items;
 };
@@ -137,18 +108,9 @@ void device_data_offer(void *data, struct zwlr_data_control_device_v1 *device, s
     (void) device;
     struct device_state *state = data;
 
-    struct full_offer *full_offer = malloc(sizeof *full_offer);
-    *full_offer = (struct full_offer) {
-        .offer = offer,
-        .mimes = NULL
-    };
-    zzz_list_prepend(&state->pending_offers, full_offer);
-    zwlr_data_control_offer_v1_add_listener(offer, &offer_listener, &full_offer->mimes);
-}
-
-void free_and_close(void *fd) {
-    close(*(int *)fd);
-    free(fd);
+    state->pending_offer = offer;
+    state->pending_offer_mimes = NULL;
+    zwlr_data_control_offer_v1_add_listener(offer, &offer_listener, &state->pending_offer_mimes);
 }
 
 // new selection came in, handle it
@@ -157,141 +119,70 @@ void free_and_close(void *fd) {
 // if the new one is null, set selection to stored one (if there was one)
 // otherwise, store the relevant data from the new one
 
+// PROBLEM: while roundtripping to store data, sometimes selection is invalidated
+// race condition from device_selection being called again
+
 // PROBLEM: some clients call selection(nil) before adding a new selection
 // we might start setting selection to stored after nil but finish after the real new selection
-// idea: keep an eye on future selections for debounce period
+// idea: keep an eye on future selections for 1 dispatch
 // if there is another selection then set_selection to that one again
+
+// PROBLEM: this needs to be able to ignore our own offers
 void device_selection(void *data, struct zwlr_data_control_device_v1 *device, struct zwlr_data_control_offer_v1 *offer) {
     struct device_state *state = data;
 
+    // destroy old one
+    if (state->selection_offer != NULL) {
+        zwlr_data_control_offer_v1_destroy(state->selection_offer);
+        state->selection_offer = NULL;
+        zzz_list_free(state->selection_offer_mimes, free);
+        state->selection_offer_mimes = NULL;
+    }
+
     // not a clipboard clear
     if (offer != NULL) {
-        struct full_offer full_offer;
-        if (!full_offers_remove(&state->pending_offers, offer, &full_offer)) {
+        if (state->pending_offer == NULL || state->pending_offer != offer) {
             fputs("selection given before offer\n", stderr);
             exit(1);
         }
 
+        state->selection_offer = state->pending_offer;
+        state->selection_offer_mimes = state->pending_offer_mimes;
+        state->pending_offer = NULL;
+        state->pending_offer_mimes = NULL;
+
         // it was prepended to, so do this revert to insertion order
-        // order is not that important but going in reverse offer order is weird
-        zzz_list_reverse(&full_offer.mimes);
+        zzz_list_reverse(&state->selection_offer_mimes);
 
         // save ones we care about
-        struct zzz_list *mimes_to_save = matching_mimes(config.pref, full_offer.mimes);
-        zzz_list_free(full_offer.mimes, free);
-        // normally this would be done when we make the replacement source
-        // but if the replacement source never gets made/saved data is never used, we need to free
+        struct zzz_list *mimes_to_save = matching_mimes(config.pref, state->selection_offer_mimes);
+        // normally this would be done when we make the source but if the clip is never cleared
+        // we need to free
         if (mimes_to_save != NULL && state->saved_items != NULL) {
             zzz_list_free(state->saved_items, free_clip_item_void);
             state->saved_items = NULL;
         }
-        // if we intend to save anything to saved_items at this point, it should be cleared
         struct zzz_list *curr_mime = mimes_to_save;
-        struct zzz_list *recv_fds = NULL;
-        struct zzz_list *send_fds = NULL;
         while (curr_mime != NULL) {
-            int fds[2];
-            pipe(fds);
-            zwlr_data_control_offer_v1_receive(offer, curr_mime->value, fds[1]);
-            int *recv_fd = malloc(sizeof(*recv_fd));
-            *recv_fd = fds[0];
-            int *send_fd = malloc(sizeof(*send_fd));
-            *send_fd = fds[1];
-            zzz_list_prepend(&recv_fds, recv_fd);
-            zzz_list_prepend(&send_fds, send_fd);
             curr_mime = curr_mime->next;
         }
-        // won't start sending through pipe without roundtrip going through
-        // would love to use wl_display_flush, but there's not really a way afaik to distinguish
-        // between own offers and offers from other clients
-        // with flush, the read hangs because our source never gets to send the data
-        wl_display_roundtrip(display);
-        // make sure all the fds get sent before closing them on this side
-        // not sure if this is necessary (closing immediately after offer receive seems to work)
-        // but better safe than sorry? i don't actually know when the socket gets sent (assuming in roundtrip)
-        zzz_list_free(send_fds, free_and_close);
-        // there might have been another selection, so abort if saved_items got messed up
-        // TODO this does feel kinda hacky and there are still some edge cases, maybe dedicated flag?
-        if (state->saved_items != NULL) {
-            zzz_list_free(recv_fds, free_and_close);
-            zzz_list_free(mimes_to_save, free);
-            return;
-        }
-
-        // might as well reuse it
-        curr_mime = mimes_to_save;
-        struct zzz_list *curr_fd = recv_fds;
-        // store and set later in case we have to bail mid-loop
-        while (curr_fd != NULL) {
-            int fd = *(int *)curr_fd->value;
-            size_t chunk_size = 1024;
-            size_t data_capacity = chunk_size;
-            size_t data_len = 0;
-            char *data = malloc(data_capacity);
-            bool failed = false;
-            while (true) {
-                if (data_len + chunk_size > data_capacity) {
-                    data = realloc(data, data_capacity *= 2);
-                }
-                // TODO timeout?
-                ssize_t bytes_read = read(fd, data + data_len, chunk_size);
-                if (bytes_read == -1) {
-                    failed = true;
-                    break;
-                }
-                data_len += bytes_read;
-                if (bytes_read != (ssize_t)chunk_size) {
-                    break;
-                }
-            }
-            close(fd);
-            if (failed) {
-                free(curr_mime->value);
-            } else {
-                struct clip_item *item = malloc(sizeof(*item));
-                *item = (struct clip_item) {
-                    .mime = curr_mime->value,
-                    .data = data,
-                    .len = data_len,
-                };
-                zzz_list_prepend(&state->saved_items, item);
-            }
-
-            curr_fd = curr_fd->next;
-            curr_mime = curr_mime->next;
-        }
-        zzz_list_free(recv_fds, free);
-
-        // don't free strings, mimes are still in saved_items
+        // don't free strings because they are from selection_offer_mimes
         zzz_list_free(mimes_to_save, NULL);
     } else if (config.replace && state->saved_items != NULL) {
-        // assume client closed; fill clipboard
-        struct zwlr_data_control_source_v1 *source =
-            zwlr_data_control_manager_v1_create_data_source(state->registry_objs->data_control_manager);
-        struct zzz_list *curr_saved_item = state->saved_items;
-        while (curr_saved_item != NULL) {
-            struct clip_item *item = curr_saved_item->value;
-            zwlr_data_control_source_v1_offer(source, item->mime);
-
-            curr_saved_item = curr_saved_item->next;
-        }
-        zwlr_data_control_source_v1_add_listener(source, &source_listener, state->saved_items);
-        zwlr_data_control_device_v1_set_selection(device, source);
-        // this is now the source's responsibility, freed on cancelled event
         state->saved_items = NULL;
     }
 }
 
-// doesn't do anything with primary for now
 void device_primary_selection(void *data, struct zwlr_data_control_device_v1 *device, struct zwlr_data_control_offer_v1 *offer) {
     (void) device;
     struct device_state *state = data;
 
     // we don't care about the pending offer, dump it
-    struct full_offer pending_full_offer;
-    if (full_offers_remove(&state->pending_offers, offer, &pending_full_offer)) {
-        zzz_list_free(pending_full_offer.mimes, free);
-        zwlr_data_control_offer_v1_destroy(pending_full_offer.offer);
+    if (offer != NULL && offer == state->pending_offer) {
+        zwlr_data_control_offer_v1_destroy(state->pending_offer);
+        state->pending_offer = NULL;
+        zzz_list_free(state->pending_offer_mimes, free);
+        state->pending_offer_mimes = NULL;
     }
 }
 
@@ -300,7 +191,10 @@ void device_finished(void *data, struct zwlr_data_control_device_v1 *device) {
 
     zwlr_data_control_device_v1_destroy(device);
     state->registry_objs->device = NULL;
-    zzz_list_free(state->pending_offers, free_full_offer_void);
+    zzz_list_free(state->pending_offer_mimes, free);
+    zzz_list_free(state->selection_offer_mimes, free);
+    if (state->pending_offer != NULL) zwlr_data_control_offer_v1_destroy(state->pending_offer);
+    if (state->selection_offer != NULL) zwlr_data_control_offer_v1_destroy(state->selection_offer);
 }
 
 struct zwlr_data_control_device_v1_listener device_listener = {
@@ -327,7 +221,10 @@ void registry_global(void *data, struct wl_registry *registry, uint32_t name, co
         struct device_state *state = malloc(sizeof *state);
         *state = (struct device_state) {
             .registry_objs = registry_objs,
-            .pending_offers = NULL,
+            .pending_offer = NULL,
+            .pending_offer_mimes = NULL,
+            .selection_offer = NULL,
+            .selection_offer_mimes = NULL,
         };
 
         zwlr_data_control_device_v1_add_listener(registry_objs->device, &device_listener, state);

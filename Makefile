@@ -1,9 +1,12 @@
 CC=gcc
-CFLAGS=-O0 -Ibuild/include -Wall -Wextra -Wpedantic -std=c99 -g -fsanitize=address
+CFLAGS=-O2 -Ibuild/include -Wall -Wextra -Wpedantic -std=c99
 
-.PHONY=run clean
+.PHONY=run clean debug
 
 build: build/zzz build/zzz_get
+
+debug: CFLAGS += -O0 -g -fsanitize=address
+debug: build build/event-viewer
 
 run: build
 	build/zzz
@@ -11,8 +14,11 @@ run: build
 clean:
 	rm -r build/*
 
+build/event-viewer: build/zzz event_viewer.c
+	$(CC) $(CFLAGS) -lwayland-client -lpcre2-8 -o build/event-viewer event_viewer.c build/*.o
+
 build/zzz: main.c build/wlr-data-control-protocol.o build/zzz_list.o build/read_config.o build/pref_parse.o
-	$(CC) $(CFLAGS) -lwayland-client -lpcre2-8 -o build/zzz main.c build/wlr-data-control-protocol.o build/zzz_list.o build/read_config.o build/pref_parse.o
+	$(CC) $(CFLAGS) -lwayland-client -lpcre2-8 -o build/zzz main.c build/*.o
 
 build/zzz_get: zzz_get.c build/wlr-data-control-protocol.o
 	$(CC) $(CFLAGS) -lwayland-client -o build/zzz_get zzz_get.c build/wlr-data-control-protocol.o build/zzz_list.o

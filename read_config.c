@@ -1,3 +1,5 @@
+#define _XOPEN_SOURCE 500
+
 #include <assert.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -83,7 +85,7 @@ struct zzz_list *matching_mimes(struct mime_pref pref, struct zzz_list *availabl
                 int match = pcre2_match(pref.inner.regex.code, mime, PCRE2_ZERO_TERMINATED, 0, 0,
                         pref.inner.regex.match_data, NULL);
                 if (match >= 0) {
-                    zzz_list_prepend(&matching_mimes, mime);
+                    zzz_list_prepend(&matching_mimes, strdup(available_mimes->value));
                 }
                 available_mimes = available_mimes->next;
             }
