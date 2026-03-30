@@ -21,6 +21,7 @@ char *config_path(void) {
         }
         char *config_dirname = "/.config";
         char *final = malloc(strlen(home) + strlen(config_dirname) + strlen(filename) + 1);
+        final[0] = '\0';
         strcat(final, home);
         strcat(final, config_dirname);
         strcat(final, filename);

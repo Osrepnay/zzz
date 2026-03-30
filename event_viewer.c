@@ -15,6 +15,7 @@
 #include <pcre2.h>
 
 #include "read_config.h"
+#include "storer.h"
 #include "wlr-data-control-protocol.h"
 #include "zzz_list.h"
 
@@ -45,20 +46,6 @@ struct registry_objs {
     uint32_t data_control_manager_name;
     struct zwlr_data_control_device_v1 *device;
 };
-
-struct clip_item {
-    char *mime;
-    char *data;
-    size_t len;
-};
-
-// for zzz_list_free
-void free_clip_item_void(void *clip_item_void) {
-    struct clip_item *clip_item = clip_item_void;
-    free(clip_item->mime);
-    free(clip_item->data);
-    free(clip_item);
-}
 
 void source_send(void *data, struct zwlr_data_control_source_v1 *source, const char *mime_type, int32_t fd) {
     (void) source;
