@@ -42,7 +42,6 @@ char *index_path;
 struct zzz_list *index;
 
 bool read_index(void) {
-    puts(index_path);
     FILE *index_file = fopen(index_path, "r");
     // return true because empty file, empty index
     if (index_file == NULL) return true;
