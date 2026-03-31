@@ -70,7 +70,7 @@ struct mime_pref get_config(void) {
         // couldn't access read config file, use default
         char *default_text =
             "[(image/png image/jpeg image/.*)"
-            "(UTF8_STRING text/plain;charset=utf8 TEXT text/plain)]";
+            "(text/*)]";
         struct mime_pref pref;
         assert(parse_mime_prefs(default_text, &pref));
         return pref;
