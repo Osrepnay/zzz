@@ -44,13 +44,16 @@ char *index_path;
 struct zzz_list *index;
 
 bool read_index(void) {
+    zzz_list_free(index, free);
     FILE *index_file = fopen(index_path, "r");
     // return true because empty file, empty index
-    if (index_file == NULL) return true;
+    if (index_file == NULL) {
+        return true;
+    }
     char filename[MAX_FILENAME];
     while (fgets(filename, MAX_FILENAME, index_file) != NULL) {
         filename[strcspn(filename, "\n")] = '\0';
-        zzz_list_prepend(&index, filename);
+        zzz_list_prepend(&index, strdup(filename));
     }
     fclose(index_file);
     return true;
