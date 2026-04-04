@@ -1,3 +1,5 @@
+#define _XOPEN_SOURCE 500
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -126,6 +128,6 @@ bool write_item(struct clip_item item) {
     fwrite(item.data, 1, item.len, data_file);
     fclose(data_file);
 
-    zzz_list_prepend(&index, filename);
+    zzz_list_prepend(&index, strdup(filename));
     return write_index();
 }
