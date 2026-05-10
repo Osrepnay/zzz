@@ -117,11 +117,12 @@ bool write_index(void) {
     while (curr_index != NULL) {
         struct zzz_list *filename_list = curr_index->value;
         zzz_list_reverse(&filename_list);
-        while (filename_list != NULL) {
-            char *filename = filename_list->value;
+        struct zzz_list *curr_filename_list = filename_list;
+        while (curr_filename_list != NULL) {
+            char *filename = curr_filename_list->value;
             fwrite(filename, 1, strlen(filename), index_file);
             fputc(' ', index_file);
-            filename_list = filename_list->next;
+            curr_filename_list = curr_filename_list->next;
         }
         fputc('\n', index_file);
         zzz_list_reverse(&filename_list);
