@@ -196,6 +196,7 @@ bool write_items(struct zzz_list *clip_items) {
             strcat(data_path, filename);
         } while (access(data_path, F_OK) == 0);
         FILE *data_file = fopen(data_path, "w");
+        free(data_path);
         if (data_file == NULL) {
             zzz_list_free(filenames, free);
             return false;
