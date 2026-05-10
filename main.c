@@ -1,7 +1,9 @@
 #define _XOPEN_SOURCE 500
 
 #include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,7 +11,7 @@
 #include <unistd.h>
 #include <wayland-client.h>
 #include <wayland-util.h>
-#include <sys/stat.h>
+#include <sys/select.h>
 
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include <pcre2.h>
@@ -150,46 +152,79 @@ bool safe_roundtrip(struct device_state *state) {
 }
 
 void read_fds(struct zzz_list **saved_items, struct zzz_list *mimes, struct zzz_list *fds) {
-    struct zzz_list *curr_mime = mimes;
-    struct zzz_list *curr_fd = fds;
-    while (curr_fd != NULL) {
-        int fd = *(int *)curr_fd->value;
-        size_t chunk_size = 1024;
-        size_t data_capacity = chunk_size;
-        size_t data_len = 0;
-        char *data = malloc(data_capacity);
-        bool failed = false;
-        while (true) {
-            if (data_len + chunk_size > data_capacity) {
-                data = realloc(data, data_capacity *= 2);
-            }
-            // TODO timeout?
-            ssize_t bytes_read = read(fd, data + data_len, chunk_size);
-            if (bytes_read == -1) {
-                failed = true;
-                break;
-            }
-            data_len += bytes_read;
-            if (bytes_read != (ssize_t)chunk_size) {
-                break;
-            }
-        }
-        if (failed) {
-            free(curr_mime->value);
-        } else {
-            struct clip_item *item = malloc(sizeof(*item));
-            *item = (struct clip_item) {
-                .mime = curr_mime->value,
-                .data = data,
-                .len = data_len,
-            };
-            zzz_list_prepend(saved_items, item);
-            write_item(*item);
-        }
+    size_t chunk_size = 1024;
 
-        curr_fd = curr_fd->next;
-        curr_mime = curr_mime->next;
+    size_t fds_len = zzz_list_len(fds);
+    struct pollfd *pollfds = malloc(sizeof(*pollfds) * fds_len);
+    size_t *data_capacities = malloc(sizeof(*data_capacities) * fds_len);
+    struct clip_item *clip_items = malloc(sizeof(*clip_items) * fds_len);
+    for (size_t i = 0; i < fds_len; i++) {
+        pollfds[i] = (struct pollfd) {
+            .fd = *(int *)fds->value,
+            .events = POLLIN,
+            .revents = 0,
+        };
+
+        data_capacities[i] = chunk_size;
+        clip_items[i] = (struct clip_item) {
+            .mime = mimes->value,
+            .data = malloc(chunk_size),
+            .len = 0,
+        };
+
+        fds = fds->next;
+        mimes = mimes->next;
     }
+
+    // counts number of fds that are "done" (empty or errored)
+    // when one is "done" the fd is also negated so poll ignores it
+    size_t num_done = 0;
+    while (num_done < fds_len && poll(pollfds, fds_len, 500) > 0) {
+        for (size_t i = 0; i < fds_len; i++) {
+            if (pollfds[i].fd < 0) continue;
+            while (true) {
+                if (clip_items[i].len + chunk_size > data_capacities[i]) {
+                    clip_items[i].data = realloc(clip_items[i].data, data_capacities[i] *= 2);
+                }
+                ssize_t bytes_read = read(pollfds[i].fd, clip_items[i].data + clip_items[i].len, chunk_size);
+                // pipe closed
+                if (bytes_read == 0) {
+                    pollfds[i].fd *= -1;
+                    num_done++;
+                    break;
+                }
+                if (bytes_read == -1) {
+                    if (errno != EAGAIN) {
+                        // unexpected error
+                        perror("read");
+                        pollfds[i].fd *= -1;
+                        num_done++;
+                        // we are allowed to free mimetype, ownership got handed to this func
+                        free(clip_items[i].mime);
+                        free(clip_items[i].data);
+                        // blank bad clip items, ignore later
+                        clip_items[i] = (struct clip_item) { 0 };
+                    }
+                    break;
+                }
+                clip_items[i].len += bytes_read;
+            }
+        }
+    }
+
+    for (size_t i = 0; i < fds_len; i++) {
+        // checking mime for nullness is just a proxy to see if the item is blanked
+        if (clip_items[i].mime != NULL) {
+            struct clip_item *item = malloc(sizeof(*item));
+            *item = clip_items[i];
+            zzz_list_prepend(saved_items, item);
+        }
+    }
+
+    free(pollfds);
+    free(clip_items);
+    free(data_capacities);
+    write_items(*saved_items);
 }
 
 // new selection came in, handle it
@@ -237,6 +272,8 @@ void device_selection(void *data, struct zwlr_data_control_device_v1 *device, st
             int fds[2];
             pipe(fds);
             zwlr_data_control_offer_v1_receive(offer, curr_mime->value, fds[1]);
+            // all fds read at same time, see read_fds for rationale
+            fcntl(fds[0], F_SETFL, fcntl(fds[0], F_GETFL) | O_NONBLOCK);
             int *recv_fd = malloc(sizeof(*recv_fd));
             *recv_fd = fds[0];
             int *send_fd = malloc(sizeof(*send_fd));
@@ -249,16 +286,18 @@ void device_selection(void *data, struct zwlr_data_control_device_v1 *device, st
         // would love to use wl_display_flush, but there's not really a way afaik to distinguish
         // between own offers and offers from other clients
         // with flush, the read hangs because our source never gets to send the data
-        if (!safe_roundtrip(state)) {
+        bool roundtrip_was_safe = safe_roundtrip(state);
+        zzz_list_free(send_fds, free_and_close);
+        if (!roundtrip_was_safe) {
             // abort, outdated selection
             zzz_list_free(mimes_to_save, free);
         } else {
+            zzz_list_reverse(&recv_fds);
             read_fds(&state->saved_items, mimes_to_save, recv_fds);
             // don't free strings, mimes are still in saved_items
             zzz_list_free(mimes_to_save, NULL);
         }
         zzz_list_free(recv_fds, free_and_close);
-        zzz_list_free(send_fds, free_and_close);
         zwlr_data_control_offer_v1_destroy(offer);
     } else if (config.replace && state->saved_items != NULL) {
         // make sure this isn't one of the cases where a null selection is immediately followed by the real one
@@ -266,6 +305,7 @@ void device_selection(void *data, struct zwlr_data_control_device_v1 *device, st
             // assume client closed; fill clipboard
             struct zwlr_data_control_source_v1 *source =
                 zwlr_data_control_manager_v1_create_data_source(state->registry_objs->data_control_manager);
+            zzz_list_reverse(&state->saved_items);
             struct zzz_list *curr_saved_item = state->saved_items;
             while (curr_saved_item != NULL) {
                 struct clip_item *item = curr_saved_item->value;

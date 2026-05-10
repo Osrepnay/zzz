@@ -68,9 +68,10 @@ struct mime_pref get_config(void) {
         }
     } else {
         // couldn't access read config file, use default
+        // TODO use #embed or something
         char *default_text =
             "[(image/png image/jpeg image/.*)"
-            "(text/*)]";
+            "(text/.*)]";
         struct mime_pref pref;
         assert(parse_mime_prefs(default_text, &pref));
         return pref;
@@ -79,19 +80,36 @@ struct mime_pref get_config(void) {
 
 struct zzz_list *matching_mimes(struct mime_pref pref, struct zzz_list *available_mimes) {
     switch (pref.type) {
-        case SINGLE_MIME: {
+        case SINGLE_MIME_ALL: {
             struct zzz_list *matching_mimes = NULL;
             while (available_mimes != NULL) {
                 unsigned char *mime = available_mimes->value;
-                int match = pcre2_match(pref.inner.regex.code, mime, PCRE2_ZERO_TERMINATED, 0, 0,
-                        pref.inner.regex.match_data, NULL);
-                if (match >= 0) {
-                    zzz_list_prepend(&matching_mimes, strdup(available_mimes->value));
+                // still not sure what the SAVE_TARGETS mimetype is
+                // (couldn't get much from freedesktop.org/wiki/ClipboardManager)
+                // but requesting SAVE_TARGETS hangs on read so let's not do that
+                if (strcmp(available_mimes->value, "SAVE_TARGETS") != 0) {
+                    int match = pcre2_match(pref.inner.regex.code, mime, PCRE2_ZERO_TERMINATED, 0, 0,
+                            pref.inner.regex.match_data, NULL);
+                    if (match >= 0) {
+                        zzz_list_prepend(&matching_mimes, strdup(available_mimes->value));
+                    }
                 }
                 available_mimes = available_mimes->next;
             }
             zzz_list_reverse(&matching_mimes);
             return matching_mimes;
+        }
+        case SINGLE_MIME_FIRST: {
+            while (available_mimes != NULL) {
+                unsigned char *mime = available_mimes->value;
+                int match = pcre2_match(pref.inner.regex.code, mime, PCRE2_ZERO_TERMINATED, 0, 0,
+                        pref.inner.regex.match_data, NULL);
+                if (match >= 0) {
+                    return zzz_list_singleton(strdup(available_mimes->value));
+                }
+                available_mimes = available_mimes->next;
+            }
+            return NULL;
         }
         case STORE_FIRST_MATCHING: {
             struct zzz_list *curr_subpref = pref.inner.subprefs;

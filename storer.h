@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <stddef.h>
+#include "zzz_list.h"
 
 struct clip_item {
     char *mime;
@@ -8,5 +9,5 @@ struct clip_item {
 };
 
 void writer_init(void);
-bool write_item(struct clip_item item);
+bool write_items(struct zzz_list *clip_items);
 void free_clip_item_void(void *clip_item_void);

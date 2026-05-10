@@ -1,3 +1,8 @@
+// the index file is a list of clipboard items, newline separated
+// each "clipbaord item" is a list of filenames (8 characters), space separated
+// each file is a specific representation of the clipboard item
+// starts with mimetype, newline, then data of item
+
 #define _XOPEN_SOURCE 500
 
 #include <stdio.h>
@@ -10,9 +15,10 @@
 #include "storer.h"
 #include "zzz_list.h"
 
-#define MAX_FILENAME 64
+#define FILENAME_CHARS 8
+#define STRINGIFY(a) STRINGIFY_VALUE(a)
+#define STRINGIFY_VALUE(a) #a
 
-// for zzz_list_free
 void free_clip_item_void(void *clip_item_void) {
     struct clip_item *clip_item = clip_item_void;
     free(clip_item->mime);
@@ -41,19 +47,61 @@ void mkdirp(char *dir) {
 
 char *write_dir;
 char *index_path;
+// the index is stored in reverse, recent at top
 struct zzz_list *index;
 
+// wrapper around zzz_list_free
+void void_zzz_list_free(void *list) {
+    zzz_list_free((struct zzz_list *) list, free);
+}
+
 bool read_index(void) {
-    zzz_list_free(index, free);
+    zzz_list_free(index, void_zzz_list_free);
     FILE *index_file = fopen(index_path, "r");
     // return true because empty file, empty index
     if (index_file == NULL) {
         return true;
     }
-    char filename[MAX_FILENAME];
-    while (fgets(filename, MAX_FILENAME, index_file) != NULL) {
-        filename[strcspn(filename, "\n")] = '\0';
-        zzz_list_prepend(&index, strdup(filename));
+    struct zzz_list *curr_set = NULL;
+    while (true) {
+        char filename[FILENAME_CHARS + 1];
+        size_t filename_len = 0;
+        bool set_ended = false;
+        bool file_ended = false;
+        while (true) {
+            char c = fgetc(index_file);
+            bool filename_ended = false;
+            switch (c) {
+                case EOF:
+                    file_ended = true;
+                    // fallthrough
+                case '\n':
+                    set_ended = true;
+                    // fallthrough
+                case ' ':
+                    filename_ended = true;
+                    break;
+                default:
+                    filename[filename_len++] = c;
+                    filename_ended = filename_len >= FILENAME_CHARS;
+            }
+            if (filename_ended) {
+                if (filename_len > 0) {
+                    filename[filename_len] = '\0';
+                    zzz_list_prepend(&curr_set, strdup(filename));
+                }
+                break;
+            }
+        }
+
+        if (set_ended && curr_set != NULL) {
+            zzz_list_reverse(&curr_set);
+            zzz_list_prepend(&index, curr_set);
+            curr_set = NULL;
+        }
+        if (file_ended) {
+            break;
+        }
     }
     fclose(index_file);
     return true;
@@ -62,15 +110,25 @@ bool read_index(void) {
 // TODO don't write the whole thing every time
 bool write_index(void) {
     zzz_list_reverse(&index);
+
     FILE *index_file = fopen(index_path, "w");
     if (index_file == NULL) return false;
     struct zzz_list *curr_index = index;
     while (curr_index != NULL) {
-        fwrite(curr_index->value, 1, strlen(curr_index->value), index_file);
+        struct zzz_list *filename_list = curr_index->value;
+        zzz_list_reverse(&filename_list);
+        while (filename_list != NULL) {
+            char *filename = filename_list->value;
+            fwrite(filename, 1, strlen(filename), index_file);
+            fputc(' ', index_file);
+            filename_list = filename_list->next;
+        }
         fputc('\n', index_file);
+        zzz_list_reverse(&filename_list);
         curr_index = curr_index->next;
     }
     fclose(index_file);
+
     zzz_list_reverse(&index);
     return true;
 }
@@ -110,27 +168,47 @@ void writer_init(void) {
     }
 }
 
-bool write_item(struct clip_item item) {
-    char filename[MAX_FILENAME];
-    char *data_path;
-    do {
-        unsigned int filename_int = rand();
-        snprintf(filename, MAX_FILENAME, "%x", filename_int);
-        data_path = malloc(strlen(write_dir) + 1 + strlen(filename) + 1);
-        data_path[0] = '\0';
-        strcat(data_path, write_dir);
-        strcat(data_path, "/");
-        strcat(data_path, filename);
-    } while (access(data_path, F_OK) == 0);
-    FILE *data_file = fopen(data_path, "w");
-    if (data_file == NULL) {
-        return false;
+bool write_items(struct zzz_list *clip_items) {
+    // it won't actually break if it doesn't return (i think)
+    // but the index reader will just skip empty sets of items
+    // so this'll make sure reading from the file results in the same index
+    // as was written to it
+    // empty clipboard items should basically never happen anyway
+    if (clip_items == NULL) {
+        return true;
     }
-    fputs(item.mime, data_file);
-    fputc('\n', data_file);
-    fwrite(item.data, 1, item.len, data_file);
-    fclose(data_file);
 
-    zzz_list_prepend(&index, strdup(filename));
+    struct zzz_list *filenames = NULL;
+    while (clip_items != NULL) {
+        struct clip_item *item = clip_items->value;
+
+        char filename[FILENAME_CHARS + 1];
+        char *data_path;
+        // loop to ensure no filename collisions (unlikely anyway)
+        do {
+            unsigned int filename_int = rand();
+            snprintf(filename, FILENAME_CHARS + 1, "%0"STRINGIFY(FILENAME_CHARS)"x", filename_int);
+            data_path = malloc(strlen(write_dir) + 1 + strlen(filename) + 1);
+            data_path[0] = '\0';
+            strcat(data_path, write_dir);
+            strcat(data_path, "/");
+            strcat(data_path, filename);
+        } while (access(data_path, F_OK) == 0);
+        FILE *data_file = fopen(data_path, "w");
+        if (data_file == NULL) {
+            zzz_list_free(filenames, free);
+            return false;
+        }
+        fputs(item->mime, data_file);
+        fputc('\0', data_file);
+        fwrite(item->data, 1, item->len, data_file);
+        fclose(data_file);
+
+        zzz_list_prepend(&filenames, strdup(filename));
+
+        clip_items = clip_items->next;
+    }
+    zzz_list_reverse(&filenames);
+    zzz_list_prepend(&index, filenames);
     return write_index();
 }

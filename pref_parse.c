@@ -73,7 +73,8 @@ void free_pref_void(void *prefs) {
 
 void free_pref(struct mime_pref *prefs) {
     switch (prefs->type) {
-        case SINGLE_MIME:
+        case SINGLE_MIME_ALL:
+        case SINGLE_MIME_FIRST:
             pcre2_code_free(prefs->inner.regex.code);
             pcre2_match_data_free(prefs->inner.regex.match_data);
             break;
@@ -85,17 +86,33 @@ void free_pref(struct mime_pref *prefs) {
     free(prefs);
 }
 
-bool try_mime_pref(struct parse_state *, struct mime_pref *);
+enum parent_type {
+    PARENT_ALL, PARENT_FIRST, PARENT_NONE
+};
+
+bool try_mime_pref(struct parse_state *, struct mime_pref *, enum parent_type parent_type);
 
 // pref with specific parenthesis type
-bool try_paren_pref(struct parse_state *state, char *paren_chars, struct zzz_list **subprefs) {
+bool try_paren_pref(struct parse_state *state, enum parent_type parent_type, struct zzz_list **subprefs) {
+    char *paren_chars = "";
+    switch (parent_type) {
+        case PARENT_ALL:
+            paren_chars = "[]";
+            break;
+        case PARENT_FIRST:
+            paren_chars = "()";
+            break;
+        case PARENT_NONE:
+            return false;
+    }
+
     size_t starting_idx = state->idx;
     if (!try_char(state, paren_chars[0])) return false;
     take_whitespace(state);
 
     *subprefs = NULL;
     struct mime_pref curr_subpref;
-    while (try_mime_pref(state, &curr_subpref)) {
+    while (try_mime_pref(state, &curr_subpref, parent_type)) {
         struct mime_pref *allocated = malloc(sizeof(*allocated));
         *allocated = curr_subpref;
         zzz_list_prepend(subprefs, allocated);
@@ -112,20 +129,20 @@ bool try_paren_pref(struct parse_state *state, char *paren_chars, struct zzz_lis
     }
 }
 
-bool try_mime_pref(struct parse_state *state, struct mime_pref *mime_pref) {
+bool try_mime_pref(struct parse_state *state, struct mime_pref *mime_pref, enum parent_type parent_type) {
     struct zzz_list *subprefs;
     char *regex;
-    if (try_paren_pref(state, "[]", &subprefs)) {
+    if (try_paren_pref(state, PARENT_ALL, &subprefs)) {
         *mime_pref = (struct mime_pref) {
             .type = STORE_ALL_MATCHING,
             .inner.subprefs = subprefs,
         };
-    } else if (try_paren_pref(state, "()", &subprefs)) {
+    } else if (try_paren_pref(state, PARENT_FIRST, &subprefs)) {
         *mime_pref = (struct mime_pref) {
             .type = STORE_FIRST_MATCHING,
             .inner.subprefs = subprefs,
         };
-    } else if (try_string(state, &regex)) {
+    } else if (parent_type != PARENT_NONE && try_string(state, &regex)) {
         int err_code;
         size_t err_offset;
         pcre2_code *compiled_regex = pcre2_compile(
@@ -136,8 +153,9 @@ bool try_mime_pref(struct parse_state *state, struct mime_pref *mime_pref) {
         );
         pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(compiled_regex, NULL);
         free(regex);
+        enum mime_pref_type type = parent_type == PARENT_ALL ? SINGLE_MIME_ALL : SINGLE_MIME_FIRST;
         *mime_pref = (struct mime_pref) {
-            .type = SINGLE_MIME,
+            .type = type,
             .inner.regex = (struct regex_with_match_data) {
                 .code = compiled_regex,
                 .match_data = match_data,
@@ -156,5 +174,5 @@ bool parse_mime_prefs(char *text, struct mime_pref *mime_pref) {
         .idx = 0
     };
     take_whitespace(&state);
-    return try_mime_pref(&state, mime_pref);
+    return try_mime_pref(&state, mime_pref, PARENT_NONE);
 }

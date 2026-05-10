@@ -1,3 +1,6 @@
+// this is just something to hook into for WAYLAND_DEBUG
+// it's an old version of the main code with the functional parts torn out
+
 #define _XOPEN_SOURCE 600
 
 #include <dirent.h>
@@ -100,21 +103,6 @@ void device_data_offer(void *data, struct zwlr_data_control_device_v1 *device, s
     zwlr_data_control_offer_v1_add_listener(offer, &offer_listener, &state->pending_offer_mimes);
 }
 
-// new selection came in, handle it
-// handling means:
-// clean up the previous selection
-// if the new one is null, set selection to stored one (if there was one)
-// otherwise, store the relevant data from the new one
-
-// PROBLEM: while roundtripping to store data, sometimes selection is invalidated
-// race condition from device_selection being called again
-
-// PROBLEM: some clients call selection(nil) before adding a new selection
-// we might start setting selection to stored after nil but finish after the real new selection
-// idea: keep an eye on future selections for 1 dispatch
-// if there is another selection then set_selection to that one again
-
-// PROBLEM: this needs to be able to ignore our own offers
 void device_selection(void *data, struct zwlr_data_control_device_v1 *device, struct zwlr_data_control_offer_v1 *offer) {
     struct device_state *state = data;
 

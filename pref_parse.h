@@ -6,7 +6,8 @@
 #include "zzz_list.h"
 
 enum mime_pref_type {
-    SINGLE_MIME,
+    SINGLE_MIME_FIRST,
+    SINGLE_MIME_ALL,
     STORE_FIRST_MATCHING,
     STORE_ALL_MATCHING,
 };

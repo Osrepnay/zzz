@@ -22,6 +22,15 @@ void zzz_list_free(struct zzz_list *list, void free_func(void *)) {
     }
 }
 
+size_t zzz_list_len(struct zzz_list *list) {
+    size_t len = 0;
+    while (list != NULL) {
+        len++;
+        list = list->next;
+    }
+    return len;
+}
+
 void zzz_list_prepend(struct zzz_list **list, void *value) {
     struct zzz_list *new_list = zzz_list_singleton(value);
     new_list->next = *list;
