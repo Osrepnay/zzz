@@ -27,6 +27,8 @@ Configuration is required at `$XDG_CONFIG_HOME/zzz_mimes`. Each line in `zzz_mim
 - history lister
 - better error handling/cleanup
 - support ext-data-control in addition to wlr-data-control
+- maximum copy size
+- maximum history length
 
 ## warning
 

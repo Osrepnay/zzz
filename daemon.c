@@ -175,9 +175,6 @@ void read_fds(struct zzz_list **saved_items, struct zzz_list *mimes, struct zzz_
                         perror("read");
                         pollfds[i].fd *= -1;
                         num_done++;
-                        // we are allowed to free mimetype, ownership got handed to this func
-                        free(clip_items[i].mime);
-                        free(clip_items[i].data);
                         // blank bad clip items, ignore later
                         clip_items[i] = (struct clip_item) { 0 };
                     }
@@ -194,6 +191,10 @@ void read_fds(struct zzz_list **saved_items, struct zzz_list *mimes, struct zzz_
             struct clip_item *item = malloc(sizeof(*item));
             *item = clip_items[i];
             zzz_list_prepend(saved_items, item);
+        } else {
+            // we are allowed to free mimetype, ownership got handed to this func
+            free(clip_items[i].mime);
+            free(clip_items[i].data);
         }
     }
 
@@ -203,16 +204,109 @@ void read_fds(struct zzz_list **saved_items, struct zzz_list *mimes, struct zzz_
     write_items(*saved_items);
 }
 
+// returns mimes to save
+struct zzz_list *process_offer(struct daemon_device_state *state, struct zwlr_data_control_offer_v1 *offer) {
+    struct full_offer full_offer;
+    if (!full_offers_remove(&state->pending_offers, offer, &full_offer)) {
+        fputs("selection given before offer\n", stderr);
+        return NULL;
+    }
+
+    // it was prepended to, so do this revert to insertion order
+    // order is not that important but going in reverse offer order is weird
+    zzz_list_reverse(&full_offer.mimes);
+
+    // save ones we care about
+    struct zzz_list *mimes_to_save = matching_mimes(daemon_opts.pref, full_offer.mimes);
+    zzz_list_free(full_offer.mimes, free);
+    // normally this would be done when we make the replacement source
+    // but if the replacement source never gets made/saved data is never used, we need to free
+    if (mimes_to_save != NULL && state->saved_items != NULL) {
+        zzz_list_free(state->saved_items, free_clip_item_void);
+        state->saved_items = NULL;
+    }
+    // if we intend to save anything to saved_items at this point, it should be cleared
+
+    return mimes_to_save;
+}
+
+void receive_mimes(struct zzz_list *mimes_to_save, struct zwlr_data_control_offer_v1 *offer,
+    struct zzz_list **recv_fds, struct zzz_list **send_fds) {
+    // store send fds to close after roundtrip
+    // doesn't seem necessary, but closing before roundtripping feels weird
+    ZZZ_LIST_FOREACH(mimes_to_save, curr_mime) {
+        int fds[2];
+        pipe(fds);
+        zwlr_data_control_offer_v1_receive(offer, curr_mime->value, fds[1]);
+        // all fds read at same time, one by one is slower and seems to hang iirc
+        fcntl(fds[0], F_SETFL, fcntl(fds[0], F_GETFL) | O_NONBLOCK);
+        int *recv_fd = malloc(sizeof(*recv_fd));
+        *recv_fd = fds[0];
+        int *send_fd = malloc(sizeof(*send_fd));
+        *send_fd = fds[1];
+        zzz_list_prepend(recv_fds, recv_fd);
+        zzz_list_prepend(send_fds, send_fd);
+    }
+}
+
+void store_selection(struct device_state *device_state, struct zwlr_data_control_offer_v1 *offer) {
+    struct daemon_device_state *state = device_state->extra_state;
+
+    struct zzz_list *mimes_to_save = process_offer(state, offer);
+    if (mimes_to_save == NULL) {
+        return;
+    }
+
+    struct zzz_list *recv_fds = NULL;
+    struct zzz_list *send_fds = NULL;
+    receive_mimes(mimes_to_save, offer, &recv_fds, &send_fds);
+
+    // won't start sending through pipe without roundtrip going through
+    // would love to use wl_display_flush, but there's not really a way afaik to distinguish
+    // between own offers and offers from other clients
+    // with flush, the read hangs because our source never gets to send the data
+    bool roundtrip_was_safe = safe_roundtrip(device_state);
+    zzz_list_free(send_fds, free_and_close);
+    if (!roundtrip_was_safe) {
+        // abort, outdated selection
+        zzz_list_free(mimes_to_save, free);
+    } else {
+        zzz_list_reverse(&recv_fds);
+        read_fds(&state->saved_items, mimes_to_save, recv_fds);
+        // don't free strings, mimes are still in saved_items
+        zzz_list_free(mimes_to_save, NULL);
+    }
+    zzz_list_free(recv_fds, free_and_close);
+    zwlr_data_control_offer_v1_destroy(offer);
+}
+
+void replace_selection(struct device_state *device_state, struct zwlr_data_control_device_v1 *device) {
+    struct daemon_device_state *state = device_state->extra_state;
+
+    // make sure this isn't one of the cases where a null selection is immediately followed by the real one
+    // if it is, a roundtrip will reenter and make roundtrip not safe, then we stop here
+    if (safe_roundtrip(device_state)) {
+        // assume client closed; fill clipboard
+        struct zwlr_data_control_source_v1 *source =
+            zwlr_data_control_manager_v1_create_data_source(device_state->wl_objs->data_control_manager);
+        zzz_list_reverse(&state->saved_items);
+        ZZZ_LIST_FOREACH(state->saved_items, curr_saved_item) {
+            struct clip_item *item = curr_saved_item->value;
+            zwlr_data_control_source_v1_offer(source, item->mime);
+
+        }
+        zwlr_data_control_source_v1_add_listener(source, &source_listener, state->saved_items);
+        zwlr_data_control_device_v1_set_selection(device, source);
+        // this is now the source's responsibility, freed on cancelled event
+        state->saved_items = NULL;
+    }
+}
+
 // new selection came in, handle it
 // handling means:
 // clean up the previous selection
 // if the new one is null, set selection to stored one (if there was one)
 // otherwise, store the relevant data from the new one
-
-// PROBLEM: some clients call selection(nil) before adding a new selection
-// we might start setting selection to stored after nil but finish after the real new selection
-// idea: keep an eye on future selections for debounce period
-// if there is another selection then set_selection to that one again
 void device_selection(void *data, struct zwlr_data_control_device_v1 *device, struct zwlr_data_control_offer_v1 *offer) {
     struct device_state *device_state = data;
     struct daemon_device_state *state = device_state->extra_state;
@@ -220,77 +314,9 @@ void device_selection(void *data, struct zwlr_data_control_device_v1 *device, st
 
     // not a clipboard clear
     if (offer != NULL) {
-        struct full_offer full_offer;
-        if (!full_offers_remove(&state->pending_offers, offer, &full_offer)) {
-            fputs("selection given before offer\n", stderr);
-            exit(1);
-        }
-
-        // it was prepended to, so do this revert to insertion order
-        // order is not that important but going in reverse offer order is weird
-        zzz_list_reverse(&full_offer.mimes);
-
-        // save ones we care about
-        struct zzz_list *mimes_to_save = matching_mimes(daemon_opts.pref, full_offer.mimes);
-        zzz_list_free(full_offer.mimes, free);
-        // normally this would be done when we make the replacement source
-        // but if the replacement source never gets made/saved data is never used, we need to free
-        if (mimes_to_save != NULL && state->saved_items != NULL) {
-            zzz_list_free(state->saved_items, free_clip_item_void);
-            state->saved_items = NULL;
-        }
-        // if we intend to save anything to saved_items at this point, it should be cleared
-        struct zzz_list *recv_fds = NULL;
-        // store send fds to close after roundtrip
-        // doesn't seem necessary, but closing before roundtripping feels weird
-        struct zzz_list *send_fds = NULL;
-        ZZZ_LIST_FOREACH(mimes_to_save, curr_mime) {
-            int fds[2];
-            pipe(fds);
-            zwlr_data_control_offer_v1_receive(offer, curr_mime->value, fds[1]);
-            // all fds read at same time, see read_fds for rationale
-            fcntl(fds[0], F_SETFL, fcntl(fds[0], F_GETFL) | O_NONBLOCK);
-            int *recv_fd = malloc(sizeof(*recv_fd));
-            *recv_fd = fds[0];
-            int *send_fd = malloc(sizeof(*send_fd));
-            *send_fd = fds[1];
-            zzz_list_prepend(&recv_fds, recv_fd);
-            zzz_list_prepend(&send_fds, send_fd);
-        }
-        // won't start sending through pipe without roundtrip going through
-        // would love to use wl_display_flush, but there's not really a way afaik to distinguish
-        // between own offers and offers from other clients
-        // with flush, the read hangs because our source never gets to send the data
-        bool roundtrip_was_safe = safe_roundtrip(device_state);
-        zzz_list_free(send_fds, free_and_close);
-        if (!roundtrip_was_safe) {
-            // abort, outdated selection
-            zzz_list_free(mimes_to_save, free);
-        } else {
-            zzz_list_reverse(&recv_fds);
-            read_fds(&state->saved_items, mimes_to_save, recv_fds);
-            // don't free strings, mimes are still in saved_items
-            zzz_list_free(mimes_to_save, NULL);
-        }
-        zzz_list_free(recv_fds, free_and_close);
-        zwlr_data_control_offer_v1_destroy(offer);
+        store_selection(device_state, offer);
     } else if (daemon_opts.replace && state->saved_items != NULL) {
-        // make sure this isn't one of the cases where a null selection is immediately followed by the real one
-        if (safe_roundtrip(device_state)) {
-            // assume client closed; fill clipboard
-            struct zwlr_data_control_source_v1 *source =
-                zwlr_data_control_manager_v1_create_data_source(device_state->wl_objs->data_control_manager);
-            zzz_list_reverse(&state->saved_items);
-            ZZZ_LIST_FOREACH(state->saved_items, curr_saved_item) {
-                struct clip_item *item = curr_saved_item->value;
-                zwlr_data_control_source_v1_offer(source, item->mime);
-
-            }
-            zwlr_data_control_source_v1_add_listener(source, &source_listener, state->saved_items);
-            zwlr_data_control_device_v1_set_selection(device, source);
-            // this is now the source's responsibility, freed on cancelled event
-            state->saved_items = NULL;
-        }
+        replace_selection(device_state, device);
     }
 }
 
