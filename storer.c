@@ -107,10 +107,7 @@ bool read_index(void) {
     return true;
 }
 
-// TODO don't write the whole thing every time
 bool write_index(void) {
-    zzz_list_reverse(&index);
-
     FILE *index_file = fopen(index_path, "w");
     if (index_file == NULL) return false;
     ZZZ_LIST_FOREACH(index, curr_index) {
@@ -125,8 +122,6 @@ bool write_index(void) {
         zzz_list_reverse(&filename_list);
     }
     fclose(index_file);
-
-    zzz_list_reverse(&index);
     return true;
 }
 

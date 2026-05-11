@@ -260,7 +260,7 @@ void device_selection(void *data, struct zwlr_data_control_device_v1 *device, st
         // if we intend to save anything to saved_items at this point, it should be cleared
         struct zzz_list *recv_fds = NULL;
         // store send fds to close after roundtrip
-        // doesn't seem necessary but just in case... don't want to send closed fd
+        // doesn't seem necessary, but closing before roundtripping feels weird
         struct zzz_list *send_fds = NULL;
         ZZZ_LIST_FOREACH(mimes_to_save, curr_mime) {
             int fds[2];
