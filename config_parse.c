@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "pref_parse.h"
+#include "config_parse.h"
 
 bool is_eof(struct parse_state *state) {
     return state->idx >= state->text_len;
