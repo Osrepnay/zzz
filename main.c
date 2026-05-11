@@ -53,16 +53,13 @@ struct registry_objs {
 void source_send(void *data, struct zwlr_data_control_source_v1 *source, const char *mime_type, int32_t fd) {
     (void) source;
     (void) mime_type;
-    struct zzz_list *items = data;
-    while (items != NULL) {
-        struct clip_item *item = items->value;
+    ZZZ_LIST_FOREACH(data, item_list) {
+        struct clip_item *item = item_list->value;
         if (strcmp(item->mime, mime_type) == 0) {
             // TODO partial writes?
             write(fd, item->data, item->len);
             break;
         }
-
-        items = items->next;
     }
     // close without sending if invalid mime type
     close(fd);
@@ -94,9 +91,8 @@ void free_full_offer_void(void *full_offer_void) {
 
 bool full_offers_remove(struct zzz_list **list, struct zwlr_data_control_offer_v1 *offer, struct full_offer *removed) {
     if (offer == NULL) return false;
-    struct zzz_list *curr = *list;
     struct zzz_list **curr_ptr = list;
-    while (curr != NULL) {
+    ZZZ_LIST_FOREACH(*list, curr) {
         // TODO is this legal? (comparing pointers for wl objects)
         struct full_offer *full_offer = curr->value;
         if (full_offer->offer == offer) {
@@ -107,7 +103,6 @@ bool full_offers_remove(struct zzz_list **list, struct zwlr_data_control_offer_v
             return true;
         }
         curr_ptr = &curr->next;
-        curr = curr->next;
     }
     return false;
 }
@@ -263,12 +258,11 @@ void device_selection(void *data, struct zwlr_data_control_device_v1 *device, st
             state->saved_items = NULL;
         }
         // if we intend to save anything to saved_items at this point, it should be cleared
-        struct zzz_list *curr_mime = mimes_to_save;
         struct zzz_list *recv_fds = NULL;
         // store send fds to close after roundtrip
         // doesn't seem necessary but just in case... don't want to send closed fd
         struct zzz_list *send_fds = NULL;
-        while (curr_mime != NULL) {
+        ZZZ_LIST_FOREACH(mimes_to_save, curr_mime) {
             int fds[2];
             pipe(fds);
             zwlr_data_control_offer_v1_receive(offer, curr_mime->value, fds[1]);
@@ -280,7 +274,6 @@ void device_selection(void *data, struct zwlr_data_control_device_v1 *device, st
             *send_fd = fds[1];
             zzz_list_prepend(&recv_fds, recv_fd);
             zzz_list_prepend(&send_fds, send_fd);
-            curr_mime = curr_mime->next;
         }
         // won't start sending through pipe without roundtrip going through
         // would love to use wl_display_flush, but there's not really a way afaik to distinguish
@@ -306,12 +299,10 @@ void device_selection(void *data, struct zwlr_data_control_device_v1 *device, st
             struct zwlr_data_control_source_v1 *source =
                 zwlr_data_control_manager_v1_create_data_source(state->registry_objs->data_control_manager);
             zzz_list_reverse(&state->saved_items);
-            struct zzz_list *curr_saved_item = state->saved_items;
-            while (curr_saved_item != NULL) {
+            ZZZ_LIST_FOREACH(state->saved_items, curr_saved_item) {
                 struct clip_item *item = curr_saved_item->value;
                 zwlr_data_control_source_v1_offer(source, item->mime);
 
-                curr_saved_item = curr_saved_item->next;
             }
             zwlr_data_control_source_v1_add_listener(source, &source_listener, state->saved_items);
             zwlr_data_control_device_v1_set_selection(device, source);

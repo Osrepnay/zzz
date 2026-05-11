@@ -18,4 +18,7 @@ void zzz_list_reverse(struct zzz_list **);
 // only copies structure, pointers are not copied
 struct zzz_list *zzz_list_copy(struct zzz_list *list);
 
+#define ZZZ_LIST_FOREACH(list, varname) \
+    for (struct zzz_list *varname = list; varname != NULL; varname = varname->next)
+
 #endif

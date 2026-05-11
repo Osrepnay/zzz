@@ -113,20 +113,16 @@ bool write_index(void) {
 
     FILE *index_file = fopen(index_path, "w");
     if (index_file == NULL) return false;
-    struct zzz_list *curr_index = index;
-    while (curr_index != NULL) {
+    ZZZ_LIST_FOREACH(index, curr_index) {
         struct zzz_list *filename_list = curr_index->value;
         zzz_list_reverse(&filename_list);
-        struct zzz_list *curr_filename_list = filename_list;
-        while (curr_filename_list != NULL) {
+        ZZZ_LIST_FOREACH(filename_list, curr_filename_list) {
             char *filename = curr_filename_list->value;
             fwrite(filename, 1, strlen(filename), index_file);
             fputc(' ', index_file);
-            curr_filename_list = curr_filename_list->next;
         }
         fputc('\n', index_file);
         zzz_list_reverse(&filename_list);
-        curr_index = curr_index->next;
     }
     fclose(index_file);
 
@@ -180,8 +176,8 @@ bool write_items(struct zzz_list *clip_items) {
     }
 
     struct zzz_list *filenames = NULL;
-    while (clip_items != NULL) {
-        struct clip_item *item = clip_items->value;
+    ZZZ_LIST_FOREACH(clip_items, curr_clip_item) {
+        struct clip_item *item = curr_clip_item->value;
 
         char filename[FILENAME_CHARS + 1];
         char *data_path;
@@ -208,7 +204,6 @@ bool write_items(struct zzz_list *clip_items) {
 
         zzz_list_prepend(&filenames, strdup(filename));
 
-        clip_items = clip_items->next;
     }
     zzz_list_reverse(&filenames);
     zzz_list_prepend(&index, filenames);
