@@ -1,3 +1,6 @@
+#ifndef CONFIG_PARSE_H
+#define CONFIG_PARSE_H
+
 #include <stdbool.h>
 #include <stddef.h>
 #define PCRE2_CODE_UNIT_WIDTH 8
@@ -32,3 +35,5 @@ struct parse_state {
 };
 
 bool parse_mime_prefs(char *text, struct mime_pref *mime_pref);
+
+#endif
