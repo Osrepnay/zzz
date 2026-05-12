@@ -16,7 +16,6 @@
 
 #include "daemon.h"
 #include "read_config.h"
-#include "registry.h"
 #include "storer.h"
 
 struct wl_display *display;
@@ -59,9 +58,7 @@ int main(int argc, char *argv[]) {
         .wl_objs = (struct wl_objs) {
             .display = display,
         },
-        .device_listener = &daemon_device_listener,
-        .init_state = &daemon_init_state,
-        .init_state_len = sizeof(daemon_init_state),
+        .dcm_callback = &daemon_dcm_callback,
     };
     wl_registry_add_listener(registry, &registry_listener, &registry_state);
     

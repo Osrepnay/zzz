@@ -1,4 +1,3 @@
-#include <stdlib.h>
 #include <string.h>
 #include <wayland-client.h>
 
@@ -22,16 +21,7 @@ void registry_global(void *data, struct wl_registry *registry, uint32_t name, co
         state->wl_objs.device = zwlr_data_control_manager_v1_get_data_device(
             state->wl_objs.data_control_manager, state->wl_objs.seat);
 
-        struct device_state *device_state = malloc(sizeof(*device_state));
-        void *init_state = malloc(state->init_state_len);
-        memcpy(init_state, state->init_state, state->init_state_len);
-        *device_state = (struct device_state) {
-            .wl_objs = &state->wl_objs,
-            .extra_state = init_state,
-        };
-
-        zwlr_data_control_device_v1_add_listener(
-            state->wl_objs.device, state->device_listener, device_state);
+        state->dcm_callback(&state->wl_objs);
     }
 }
 

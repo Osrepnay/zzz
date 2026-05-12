@@ -12,15 +12,7 @@ struct wl_objs {
 
 struct registry_state {
     struct wl_objs wl_objs;
-    struct zwlr_data_control_device_v1_listener *device_listener;
-    // state to initialize device listener with
-    void *init_state;
-    size_t init_state_len;
-};
-
-struct device_state {
-    struct wl_objs *wl_objs;
-    void *extra_state;
+    void (*dcm_callback)(struct wl_objs *);
 };
 
 extern struct wl_registry_listener registry_listener;
