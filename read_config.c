@@ -10,7 +10,7 @@
 
 #include "read_config.h"
 
-char *config_path(void) {
+static char *config_path(void) {
     char *xdg_config_home = getenv("XDG_CONFIG_HOME");
     char *filename = "/zzzclip";
     if (xdg_config_home == NULL) {

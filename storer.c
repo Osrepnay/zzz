@@ -26,7 +26,7 @@ void free_clip_item_void(void *clip_item_void) {
     free(clip_item);
 }
 
-void mkdirp(char *dir) {
+static void mkdirp(char *dir) {
     if (dir[0] == '\0') return;
     size_t last_slash_idx = 1;
     do {
@@ -80,11 +80,11 @@ void path_init(void) {
 }
 
 // wrapper around zzz_list_free
-void void_zzz_list_free(void *list) {
+static void void_zzz_list_free(void *list) {
     zzz_list_free((struct zzz_list *) list, free);
 }
 
-bool read_index(void) {
+static bool read_index(void) {
     zzz_list_free(index, void_zzz_list_free);
     FILE *index_file = fopen(index_path, "r");
     // return true because empty file, empty index
@@ -208,7 +208,7 @@ bool write_items(struct zzz_list *clip_items) {
     return write_index();
 }
 
-char *read_mime(FILE *file) {
+static char *read_mime(FILE *file) {
     size_t mime_len = 0;
     char c;
     while ((c = fgetc(file)) != EOF && c != '\0') mime_len++;
@@ -223,7 +223,7 @@ char *read_mime(FILE *file) {
     return mime;
 }
 
-bool read_data(FILE *file, char **data, size_t *len) {
+static bool read_data(FILE *file, char **data, size_t *len) {
     long starting_offset = ftell(file);
     if (starting_offset == -1) {
         perror("ftell");

@@ -4,7 +4,7 @@
 #include "registry.h"
 #include "wlr-data-control-protocol.h"
 
-void registry_global(void *data, struct wl_registry *registry, uint32_t name, const char *interface, uint32_t version) {
+static void registry_global(void *data, struct wl_registry *registry, uint32_t name, const char *interface, uint32_t version) {
     struct registry_state *state = data;
 
     if (strcmp(interface, wl_seat_interface.name) == 0 && version >= 1) {
@@ -25,7 +25,7 @@ void registry_global(void *data, struct wl_registry *registry, uint32_t name, co
     }
 }
 
-void registry_remove(void *data, struct wl_registry *registry, uint32_t name) {
+static void registry_remove(void *data, struct wl_registry *registry, uint32_t name) {
     struct wl_objs *wl_objs = data;
     (void) registry;
 
