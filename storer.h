@@ -8,6 +8,8 @@ struct clip_item {
     size_t len;
 };
 
+void path_init(void);
 void writer_init(void);
 bool write_items(struct zzz_list *clip_items);
+bool read_item(char *filename, struct clip_item *res);
 void free_clip_item_void(void *clip_item_void);

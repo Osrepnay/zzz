@@ -50,6 +50,35 @@ char *index_path;
 // the index is stored in reverse, recent at top
 struct zzz_list *index;
 
+void path_init(void) {
+    char *basedir = getenv("XDG_STATE_HOME");
+    if (basedir == NULL) {
+        char *home = getenv("HOME");
+        if (home == NULL) {
+            fputs("no $HOME, aborting\n", stderr);
+            exit(EXIT_FAILURE);
+        }
+        char *state_dirname = "/.local/state";
+        basedir = malloc(strlen(home) + strlen(state_dirname) + 1);
+        basedir[0] = '\0';
+        strcat(basedir, home);
+        strcat(basedir, state_dirname);
+    }
+    char *zzz_dirname = "/zzzclip";
+    write_dir = malloc(strlen(basedir) + strlen(zzz_dirname) + 1);
+    write_dir[0] = '\0';
+    strcat(write_dir, basedir);
+    strcat(write_dir, zzz_dirname);
+    mkdirp(write_dir);
+
+    char *index_filename = "index";
+    index_path = malloc(strlen(write_dir) + 1 + strlen(index_filename) + 1);
+    index_path[0] = '\0';
+    strcat(index_path, write_dir);
+    strcat(index_path, "/");
+    strcat(index_path, index_filename);
+}
+
 // wrapper around zzz_list_free
 void void_zzz_list_free(void *list) {
     zzz_list_free((struct zzz_list *) list, free);
@@ -127,33 +156,7 @@ bool write_index(void) {
 
 void writer_init(void) {
     srand(time(NULL));
-
-    char *basedir = getenv("XDG_STATE_HOME");
-    if (basedir == NULL) {
-        char *home = getenv("HOME");
-        if (home == NULL) {
-            fputs("no $HOME, aborting\n", stderr);
-            exit(EXIT_FAILURE);
-        }
-        char *state_dirname = "/.local/state";
-        basedir = malloc(strlen(home) + strlen(state_dirname) + 1);
-        basedir[0] = '\0';
-        strcat(basedir, home);
-        strcat(basedir, state_dirname);
-    }
-    char *zzz_dirname = "/zzzclip";
-    write_dir = malloc(strlen(basedir) + strlen(zzz_dirname) + 1);
-    write_dir[0] = '\0';
-    strcat(write_dir, basedir);
-    strcat(write_dir, zzz_dirname);
-    mkdirp(write_dir);
-
-    char *index_filename = "index";
-    index_path = malloc(strlen(write_dir) + 1 + strlen(index_filename) + 1);
-    index_path[0] = '\0';
-    strcat(index_path, write_dir);
-    strcat(index_path, "/");
-    strcat(index_path, index_filename);
+    path_init();
     if (!read_index()) {
         fputs("failed to read index, aborting\n", stderr);
         exit(EXIT_FAILURE);
@@ -203,4 +206,80 @@ bool write_items(struct zzz_list *clip_items) {
     zzz_list_reverse(&filenames);
     zzz_list_prepend(&index, filenames);
     return write_index();
+}
+
+char *read_mime(FILE *file) {
+    size_t mime_len = 0;
+    char c;
+    while ((c = fgetc(file)) != EOF && c != '\0') mime_len++;
+    if (fseek(file, 0, SEEK_SET) != 0) {
+        // ?
+        perror("fseek");
+        return NULL;
+    }
+    char *mime = malloc(mime_len + 1);
+    fread(mime, 1, mime_len, file);
+    mime[mime_len] = '\0';
+    return mime;
+}
+
+bool read_data(FILE *file, char **data, size_t *len) {
+    long starting_offset = ftell(file);
+    if (starting_offset == -1) {
+        perror("ftell");
+        return false;
+    }
+    // TODO apparently SEEK_END on binary files isn't portable?
+    if (fseek(file, 0, SEEK_END) != 0) {
+        perror("fseek");
+        return false;
+    }
+    long ending_offset = ftell(file);
+    if (ending_offset == -1) {
+        perror("ftell");
+        return false;
+    }
+    if (fseek(file, starting_offset, SEEK_SET) != 0) {
+        perror("fseek");
+        return false;
+    }
+    long to_read = ending_offset - starting_offset;
+    *data = malloc(to_read);
+    fread(*data, 1, to_read, file);
+    *len = to_read;
+    return true;
+}
+
+bool read_item(char *filename, struct clip_item *res) {
+    bool status = false;
+
+    char *path = malloc(strlen(write_dir) + 1 + strlen(filename) + 1);
+    path[0] = '\0';
+    strcat(path, write_dir);
+    strcat(path, "/");
+    strcat(path, filename);
+    FILE *file = fopen(path, "r");
+    if (file == NULL) {
+        perror("fopen");
+        free(path);
+        return false;
+    }
+    
+    char *mime = read_mime(file);
+    if (mime == NULL) goto cleanup;
+    if (fgetc(file) != '\0') goto cleanup;
+    char *data;
+    size_t len;
+    if (!read_data(file, &data, &len)) goto cleanup;
+    *res = (struct clip_item) {
+        .mime = mime,
+        .data = data,
+        .len = len,
+    };
+    status = true;
+
+cleanup:
+    free(path);
+    fclose(file);
+    return status;
 }

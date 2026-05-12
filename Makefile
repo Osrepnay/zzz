@@ -3,7 +3,7 @@ CFLAGS=-O0 -Ibuild/include -Wall -Wextra -Wpedantic -std=c99 -g -fsanitize=addre
 
 .PHONY=run clean debug
 
-build: build/zzz build/zzz_get
+build: build/zzz
 
 debug: CFLAGS += -O0 -g -fsanitize=address
 debug: build build/event-viewer
@@ -17,14 +17,14 @@ clean:
 build/event-viewer: build/zzz event_viewer.c
 	$(CC) $(CFLAGS) -lwayland-client -lpcre2-8 -o build/event-viewer event_viewer.c build/*.o
 
-build/zzz: main.c build/wlr-data-control-protocol.o build/zzz_list.o build/read_config.o build/config_parse.o build/storer.o build/daemon.o build/registry.o
+build/zzz: main.c build/wlr-data-control-protocol.o build/zzz_list.o build/read_config.o build/config_parse.o build/storer.o build/daemon.o build/getter.o build/registry.o
 	$(CC) $(CFLAGS) -lwayland-client -lpcre2-8 -o build/zzz main.c build/*.o
-
-build/zzz_get: zzz_get.c build/wlr-data-control-protocol.o
-	$(CC) $(CFLAGS) -lwayland-client -o build/zzz_get zzz_get.c build/wlr-data-control-protocol.o build/zzz_list.o
 
 build/daemon.o: daemon.c daemon.h
 	$(CC) $(CFLAGS) -c -o build/daemon.o daemon.c
+
+build/getter.o: getter.c getter.h
+	$(CC) $(CFLAGS) -c -o build/getter.o getter.c
 
 build/registry.o: registry.c registry.h
 	$(CC) $(CFLAGS) -c -o build/registry.o registry.c

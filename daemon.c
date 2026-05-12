@@ -38,7 +38,7 @@ struct daemon_device_state {
     int tamper_count;
 };
 
-void offer_new_offer(void *data, struct zwlr_data_control_offer_v1 *offer, const char *mime) {
+static void offer_new_offer(void *data, struct zwlr_data_control_offer_v1 *offer, const char *mime) {
     struct zzz_list **current_mimes = data;
     (void) offer;
 
@@ -46,11 +46,11 @@ void offer_new_offer(void *data, struct zwlr_data_control_offer_v1 *offer, const
     zzz_list_prepend(current_mimes, duped);
 }
 
-struct zwlr_data_control_offer_v1_listener offer_listener = {
+static struct zwlr_data_control_offer_v1_listener offer_listener = {
     .offer = &offer_new_offer,
 };
 
-void source_send(void *data, struct zwlr_data_control_source_v1 *source, const char *mime_type, int32_t fd) {
+static void source_send(void *data, struct zwlr_data_control_source_v1 *source, const char *mime_type, int32_t fd) {
     (void) source;
     (void) mime_type;
     ZZZ_LIST_FOREACH(data, item_list) {
@@ -65,13 +65,13 @@ void source_send(void *data, struct zwlr_data_control_source_v1 *source, const c
     close(fd);
 }
 
-void source_cancelled(void *data, struct zwlr_data_control_source_v1 *source) {
+static void source_cancelled(void *data, struct zwlr_data_control_source_v1 *source) {
     struct zzz_list *items = data;
     zzz_list_free(items, free_clip_item_void);
     zwlr_data_control_source_v1_destroy(source);
 }
 
-struct zwlr_data_control_source_v1_listener source_listener = {
+static struct zwlr_data_control_source_v1_listener source_listener = {
     .send = &source_send,
     .cancelled = &source_cancelled
 };
@@ -82,14 +82,14 @@ struct full_offer {
 };
 
 // for zzz_list_free
-void free_full_offer_void(void *full_offer_void) {
+static void free_full_offer_void(void *full_offer_void) {
     struct full_offer *full_offer = full_offer_void;
     zwlr_data_control_offer_v1_destroy(full_offer->offer);
     zzz_list_free(full_offer->mimes, free);
     free(full_offer);
 }
 
-bool full_offers_remove(struct zzz_list **list, struct zwlr_data_control_offer_v1 *offer, struct full_offer *removed) {
+static bool full_offers_remove(struct zzz_list **list, struct zwlr_data_control_offer_v1 *offer, struct full_offer *removed) {
     if (offer == NULL) return false;
     struct zzz_list **curr_ptr = list;
     ZZZ_LIST_FOREACH(*list, curr) {
@@ -110,7 +110,7 @@ bool full_offers_remove(struct zzz_list **list, struct zwlr_data_control_offer_v
 // store offer from offer introduction and listen for mimes
 // offer will be stored until device_selection where it is actually used
 // otherwise, might start working on a primary selection offer
-void device_data_offer(void *data, struct zwlr_data_control_device_v1 *device, struct zwlr_data_control_offer_v1 *offer) {
+static void device_data_offer(void *data, struct zwlr_data_control_device_v1 *device, struct zwlr_data_control_offer_v1 *offer) {
     (void) device;
     struct daemon_device_state *state = data;
 
@@ -123,18 +123,18 @@ void device_data_offer(void *data, struct zwlr_data_control_device_v1 *device, s
     zwlr_data_control_offer_v1_add_listener(offer, &offer_listener, &full_offer->mimes);
 }
 
-void free_and_close(void *fd) {
+static void free_and_close(void *fd) {
     close(*(int *)fd);
     free(fd);
 }
 
-bool safe_roundtrip(struct daemon_device_state *state) {
+static bool safe_roundtrip(struct daemon_device_state *state) {
     int tamper_expected = state->tamper_count;
     wl_display_roundtrip(state->wl_objs->display);
     return tamper_expected == state->tamper_count;
 }
 
-void read_fds(struct zzz_list **saved_items, struct zzz_list *mimes, struct zzz_list *fds) {
+static void read_fds(struct zzz_list **saved_items, struct zzz_list *mimes, struct zzz_list *fds) {
     size_t chunk_size = 1024;
 
     size_t fds_len = zzz_list_len(fds);
@@ -212,7 +212,7 @@ void read_fds(struct zzz_list **saved_items, struct zzz_list *mimes, struct zzz_
 }
 
 // returns mimes to save
-struct zzz_list *process_offer(struct daemon_device_state *state, struct zwlr_data_control_offer_v1 *offer) {
+static struct zzz_list *process_offer(struct daemon_device_state *state, struct zwlr_data_control_offer_v1 *offer) {
     struct full_offer full_offer;
     if (!full_offers_remove(&state->pending_offers, offer, &full_offer)) {
         fputs("selection given before offer\n", stderr);
@@ -237,7 +237,7 @@ struct zzz_list *process_offer(struct daemon_device_state *state, struct zwlr_da
     return mimes_to_save;
 }
 
-void receive_mimes(struct zzz_list *mimes_to_save, struct zwlr_data_control_offer_v1 *offer,
+static void receive_mimes(struct zzz_list *mimes_to_save, struct zwlr_data_control_offer_v1 *offer,
     struct zzz_list **recv_fds, struct zzz_list **send_fds) {
     // store send fds to close after roundtrip
     // doesn't seem necessary, but closing before roundtripping feels weird
@@ -256,7 +256,7 @@ void receive_mimes(struct zzz_list *mimes_to_save, struct zwlr_data_control_offe
     }
 }
 
-void store_selection(struct daemon_device_state *state, struct zwlr_data_control_offer_v1 *offer) {
+static void store_selection(struct daemon_device_state *state, struct zwlr_data_control_offer_v1 *offer) {
     struct zzz_list *mimes_to_save = process_offer(state, offer);
     if (mimes_to_save == NULL) {
         return;
@@ -285,7 +285,7 @@ void store_selection(struct daemon_device_state *state, struct zwlr_data_control
     zwlr_data_control_offer_v1_destroy(offer);
 }
 
-void replace_selection(struct daemon_device_state *state, struct zwlr_data_control_device_v1 *device) {
+static void replace_selection(struct daemon_device_state *state, struct zwlr_data_control_device_v1 *device) {
     // make sure this isn't one of the cases where a null selection is immediately followed by the real one
     // if it is, a roundtrip will reenter and make roundtrip not safe, then we stop here
     if (safe_roundtrip(state)) {
@@ -310,7 +310,7 @@ void replace_selection(struct daemon_device_state *state, struct zwlr_data_contr
 // clean up the previous selection
 // if the new one is null, set selection to stored one (if there was one)
 // otherwise, store the relevant data from the new one
-void device_selection(void *data, struct zwlr_data_control_device_v1 *device, struct zwlr_data_control_offer_v1 *offer) {
+static void device_selection(void *data, struct zwlr_data_control_device_v1 *device, struct zwlr_data_control_offer_v1 *offer) {
     struct daemon_device_state *state = data;
     state->tamper_count++;
 
@@ -323,7 +323,7 @@ void device_selection(void *data, struct zwlr_data_control_device_v1 *device, st
 }
 
 // doesn't do anything with primary for now
-void device_primary_selection(void *data, struct zwlr_data_control_device_v1 *device, struct zwlr_data_control_offer_v1 *offer) {
+static void device_primary_selection(void *data, struct zwlr_data_control_device_v1 *device, struct zwlr_data_control_offer_v1 *offer) {
     (void) device;
     struct daemon_device_state *state = data;
 
@@ -335,7 +335,7 @@ void device_primary_selection(void *data, struct zwlr_data_control_device_v1 *de
     }
 }
 
-void device_finished(void *data, struct zwlr_data_control_device_v1 *device) {
+static void device_finished(void *data, struct zwlr_data_control_device_v1 *device) {
     struct daemon_device_state *state = data;
 
     zwlr_data_control_device_v1_destroy(device);
@@ -343,14 +343,15 @@ void device_finished(void *data, struct zwlr_data_control_device_v1 *device) {
     zzz_list_free(state->pending_offers, free_full_offer_void);
 }
 
-struct zwlr_data_control_device_v1_listener daemon_device_listener = {
+static struct zwlr_data_control_device_v1_listener daemon_device_listener = {
     .data_offer = &device_data_offer,
     .selection = &device_selection,
     .primary_selection = &device_primary_selection,
     .finished = &device_finished,
 };
 
-void daemon_dcm_callback(struct wl_objs *wl_objs) {
+void daemon_dcm_callback(void *data, struct wl_objs *wl_objs) {
+    (void) data;
     struct daemon_device_state *state = malloc(sizeof(*state));
     *state = (struct daemon_device_state) {
         .wl_objs = wl_objs,

@@ -1,3 +1,6 @@
+#ifndef REGISTRY_H
+#define REGISTRY_H
+
 #include <stdint.h>
 #include <wayland-client.h>
 
@@ -12,7 +15,10 @@ struct wl_objs {
 
 struct registry_state {
     struct wl_objs wl_objs;
-    void (*dcm_callback)(struct wl_objs *);
+    void (*dcm_callback)(void *, struct wl_objs *);
+    void *callback_data;
 };
 
 extern struct wl_registry_listener registry_listener;
+
+#endif

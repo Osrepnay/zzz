@@ -8,4 +8,4 @@ struct daemon_opts {
 
 extern struct daemon_opts daemon_opts;
 
-void daemon_dcm_callback(struct wl_objs *wl_objs);
+void daemon_dcm_callback(void *data, struct wl_objs *wl_objs);

@@ -21,7 +21,7 @@ void registry_global(void *data, struct wl_registry *registry, uint32_t name, co
         state->wl_objs.device = zwlr_data_control_manager_v1_get_data_device(
             state->wl_objs.data_control_manager, state->wl_objs.seat);
 
-        state->dcm_callback(&state->wl_objs);
+        state->dcm_callback(state->callback_data, &state->wl_objs);
     }
 }
 
