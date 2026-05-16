@@ -67,17 +67,17 @@ int main(int argc, char *argv[]) {
         int c;
         while ((c = getopt(argc, argv, "hn")) != -1) {
             switch (c) {
-                case '?':
-                    fputs(help, stderr);
-                    return EXIT_FAILURE;
-                case 'h':
-                    fputs(help, stdout);
-                    return EXIT_SUCCESS;
-                case 'n':
-                    daemon_opts.replace = false;
-                    break;
-                default:
-                    break;
+            case '?':
+                fputs(help, stderr);
+                return EXIT_FAILURE;
+            case 'h':
+                fputs(help, stdout);
+                return EXIT_SUCCESS;
+            case 'n':
+                daemon_opts.replace = false;
+                break;
+            default:
+                break;
             }
         }
     }

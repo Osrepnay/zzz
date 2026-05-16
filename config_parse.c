@@ -73,15 +73,15 @@ void free_pref_void(void *prefs) {
 
 void free_pref(struct mime_pref *prefs) {
     switch (prefs->type) {
-        case SINGLE_MIME_ALL:
-        case SINGLE_MIME_FIRST:
-            pcre2_code_free(prefs->inner.regex.code);
-            pcre2_match_data_free(prefs->inner.regex.match_data);
-            break;
-        case STORE_ALL_MATCHING:
-        case STORE_FIRST_MATCHING: {
-            zzz_list_free(prefs->inner.subprefs, free_pref_void);
-        }
+    case SINGLE_MIME_ALL:
+    case SINGLE_MIME_FIRST:
+        pcre2_code_free(prefs->inner.regex.code);
+        pcre2_match_data_free(prefs->inner.regex.match_data);
+        break;
+    case STORE_ALL_MATCHING:
+    case STORE_FIRST_MATCHING: {
+        zzz_list_free(prefs->inner.subprefs, free_pref_void);
+    }
     }
     free(prefs);
 }
@@ -96,14 +96,14 @@ bool try_mime_pref(struct parse_state *, struct mime_pref *, enum parent_type pa
 bool try_paren_pref(struct parse_state *state, enum parent_type parent_type, struct zzz_list **subprefs) {
     char *paren_chars = "";
     switch (parent_type) {
-        case PARENT_ALL:
-            paren_chars = "[]";
-            break;
-        case PARENT_FIRST:
-            paren_chars = "()";
-            break;
-        case PARENT_NONE:
-            return false;
+    case PARENT_ALL:
+        paren_chars = "[]";
+        break;
+    case PARENT_FIRST:
+        paren_chars = "()";
+        break;
+    case PARENT_NONE:
+        return false;
     }
 
     size_t starting_idx = state->idx;

@@ -8,12 +8,12 @@
 static void print_textual(char *data, size_t len) {
     for (size_t i = 0; i < len; i++) {
         switch (data[i]) {
-            case '\r':
-            case '\n':
-                putchar(' ');
-                break;
-            default:
-                putchar(data[i]);
+        case '\r':
+        case '\n':
+            putchar(' ');
+            break;
+        default:
+            putchar(data[i]);
         }
     }
     putchar('\n');

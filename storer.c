@@ -104,18 +104,18 @@ bool read_index(void) {
             char c = fgetc(index_file);
             bool filename_ended = false;
             switch (c) {
-                case EOF:
-                    file_ended = true;
-                    // fallthrough
-                case '\n':
-                    set_ended = true;
-                    // fallthrough
-                case ' ':
-                    filename_ended = true;
-                    break;
-                default:
-                    filename[filename_len++] = c;
-                    filename_ended = filename_len >= FILENAME_CHARS;
+            case EOF:
+                file_ended = true;
+                // fallthrough
+            case '\n':
+                set_ended = true;
+                // fallthrough
+            case ' ':
+                filename_ended = true;
+                break;
+            default:
+                filename[filename_len++] = c;
+                filename_ended = filename_len >= FILENAME_CHARS;
             }
             if (filename_ended) {
                 if (filename_len > 0) {
