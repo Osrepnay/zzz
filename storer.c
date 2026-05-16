@@ -19,6 +19,8 @@
 #define STRINGIFY(a) STRINGIFY_VALUE(a)
 #define STRINGIFY_VALUE(a) #a
 
+struct zzz_list *storer_index;
+
 void free_clip_item_void(void *clip_item_void) {
     struct clip_item *clip_item = clip_item_void;
     free(clip_item->mime);
@@ -45,12 +47,12 @@ static void mkdirp(char *dir) {
     } while (dir[last_slash_idx++] != '\0');
 }
 
-char *write_dir;
-char *index_path;
-// the index is stored in reverse, recent at top
-struct zzz_list *index;
+static char *write_dir;
+static char *index_path;
 
 void path_init(void) {
+    if (write_dir != NULL) free(write_dir);
+    if (index_path != NULL) free(index_path);
     char *basedir = getenv("XDG_STATE_HOME");
     if (basedir == NULL) {
         char *home = getenv("HOME");
@@ -84,8 +86,9 @@ static void void_zzz_list_free(void *list) {
     zzz_list_free((struct zzz_list *) list, free);
 }
 
-static bool read_index(void) {
-    zzz_list_free(index, void_zzz_list_free);
+bool read_index(void) {
+    zzz_list_free(storer_index, void_zzz_list_free);
+    storer_index = NULL;
     FILE *index_file = fopen(index_path, "r");
     // return true because empty file, empty index
     if (index_file == NULL) {
@@ -125,7 +128,7 @@ static bool read_index(void) {
 
         if (set_ended && curr_set != NULL) {
             zzz_list_reverse(&curr_set);
-            zzz_list_prepend(&index, curr_set);
+            zzz_list_prepend(&storer_index, curr_set);
             curr_set = NULL;
         }
         if (file_ended) {
@@ -139,7 +142,7 @@ static bool read_index(void) {
 bool write_index(void) {
     FILE *index_file = fopen(index_path, "w");
     if (index_file == NULL) return false;
-    ZZZ_LIST_FOREACH(index, curr_index) {
+    ZZZ_LIST_FOREACH(storer_index, curr_index) {
         struct zzz_list *filename_list = curr_index->value;
         zzz_list_reverse(&filename_list);
         ZZZ_LIST_FOREACH(filename_list, curr_filename_list) {
@@ -204,11 +207,26 @@ bool write_items(struct zzz_list *clip_items) {
 
     }
     zzz_list_reverse(&filenames);
-    zzz_list_prepend(&index, filenames);
+    zzz_list_prepend(&storer_index, filenames);
     return write_index();
 }
 
-static char *read_mime(FILE *file) {
+FILE *access_file(char *filename) {
+    char *path = malloc(strlen(write_dir) + 1 + strlen(filename) + 1);
+    path[0] = '\0';
+    strcat(path, write_dir);
+    strcat(path, "/");
+    strcat(path, filename);
+    FILE *file = fopen(path, "r");
+    free(path);
+    if (file == NULL) {
+        perror("fopen");
+        return NULL;
+    }
+    return file;
+}
+
+char *read_mime(FILE *file) {
     size_t mime_len = 0;
     char c;
     while ((c = fgetc(file)) != EOF && c != '\0') mime_len++;
@@ -218,12 +236,18 @@ static char *read_mime(FILE *file) {
         return NULL;
     }
     char *mime = malloc(mime_len + 1);
-    fread(mime, 1, mime_len, file);
-    mime[mime_len] = '\0';
-    return mime;
+    // plus one to consume the null byte
+    size_t num_read = fread(mime, 1, mime_len + 1, file);
+    if (num_read != mime_len + 1) {
+        free(mime);
+        return NULL;
+    } else {
+        mime[mime_len] = '\0';
+        return mime;
+    }
 }
 
-static bool read_data(FILE *file, char **data, size_t *len) {
+bool read_data(FILE *file, char **data, size_t *len) {
     long starting_offset = ftell(file);
     if (starting_offset == -1) {
         perror("ftell");
@@ -253,21 +277,13 @@ static bool read_data(FILE *file, char **data, size_t *len) {
 bool read_item(char *filename, struct clip_item *res) {
     bool status = false;
 
-    char *path = malloc(strlen(write_dir) + 1 + strlen(filename) + 1);
-    path[0] = '\0';
-    strcat(path, write_dir);
-    strcat(path, "/");
-    strcat(path, filename);
-    FILE *file = fopen(path, "r");
+    FILE *file = access_file(filename);
     if (file == NULL) {
-        perror("fopen");
-        free(path);
         return false;
     }
     
     char *mime = read_mime(file);
     if (mime == NULL) goto cleanup;
-    if (fgetc(file) != '\0') goto cleanup;
     char *data;
     size_t len;
     if (!read_data(file, &data, &len)) goto cleanup;
@@ -279,7 +295,6 @@ bool read_item(char *filename, struct clip_item *res) {
     status = true;
 
 cleanup:
-    free(path);
     fclose(file);
     return status;
 }

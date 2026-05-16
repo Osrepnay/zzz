@@ -17,6 +17,7 @@
 
 #include "daemon.h"
 #include "getter.h"
+#include "lister.h"
 #include "read_config.h"
 #include "storer.h"
 
@@ -39,14 +40,22 @@ int main(int argc, char *argv[]) {
         },
     };
 
-    if (argc >= 2 && strcmp(argv[1], "get") == 0) {
-        struct zzz_list *list = NULL;
-        for (int i = 2; i < argc; i++) {
-            zzz_list_prepend(&list, argv[i]);
+    if (argc >= 2) {
+        if (strcmp(argv[1], "get") == 0) {
+            struct zzz_list *list = NULL;
+            for (int i = 2; i < argc; i++) {
+                zzz_list_prepend(&list, argv[i]);
+            }
+            zzz_list_reverse(&list);
+            registry_state.dcm_callback = getter_dcm_callback;
+            registry_state.callback_data = list;
+        } else if (strcmp(argv[1], "list") == 0) {
+            if (print_listing()) {
+                exit(EXIT_SUCCESS);
+            } else {
+                exit(EXIT_FAILURE);
+            }
         }
-        zzz_list_reverse(&list);
-        registry_state.dcm_callback = getter_dcm_callback;
-        registry_state.callback_data = list;
     } else {
         registry_state.dcm_callback = daemon_dcm_callback;
         registry_state.callback_data = NULL;

@@ -17,7 +17,7 @@ clean:
 build/event-viewer: build/zzz event_viewer.c
 	$(CC) $(CFLAGS) -lwayland-client -lpcre2-8 -o build/event-viewer event_viewer.c build/*.o
 
-build/zzz: main.c build/wlr-data-control-protocol.o build/zzz_list.o build/read_config.o build/config_parse.o build/storer.o build/daemon.o build/getter.o build/registry.o
+build/zzz: main.c build/wlr-data-control-protocol.o build/zzz_list.o build/read_config.o build/config_parse.o build/storer.o build/daemon.o build/getter.o build/lister.o build/registry.o
 	$(CC) $(CFLAGS) -lwayland-client -lpcre2-8 -o build/zzz main.c build/*.o
 
 build/daemon.o: daemon.c daemon.h
@@ -25,6 +25,9 @@ build/daemon.o: daemon.c daemon.h
 
 build/getter.o: getter.c getter.h
 	$(CC) $(CFLAGS) -c -o build/getter.o getter.c
+
+build/lister.o: lister.c lister.h
+	$(CC) $(CFLAGS) -c -o build/lister.o lister.c
 
 build/registry.o: registry.c registry.h
 	$(CC) $(CFLAGS) -c -o build/registry.o registry.c
