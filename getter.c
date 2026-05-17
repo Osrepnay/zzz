@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "read_config.h"
 #include "registry.h"
 #include "storer.h"
 #include "wlr-data-control-protocol.h"
@@ -57,6 +58,7 @@ void getter_dcm_callback(void *data, struct wl_objs *wl_objs) {
         struct clip_item *clip_item = clip_item_node->value;
         zwlr_data_control_source_v1_offer(source, clip_item->mime);
     }
+    zwlr_data_control_source_v1_offer(source, INTERNAL_MIME);
     zwlr_data_control_source_v1_add_listener(source, &source_listener, clip_items);
     zwlr_data_control_device_v1_set_selection(wl_objs->device, source);
 }

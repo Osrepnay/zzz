@@ -128,6 +128,7 @@ static void free_and_close(void *fd) {
     free(fd);
 }
 
+// TODO check if INTERNAL_MIME means we can now flush instead of roundtrip jank
 static bool safe_roundtrip(struct daemon_device_state *state) {
     int tamper_expected = state->tamper_count;
     wl_display_roundtrip(state->wl_objs->display);
@@ -211,12 +212,28 @@ static void read_fds(struct zzz_list **saved_items, struct zzz_list *mimes, stru
     write_items(*saved_items);
 }
 
-// returns mimes to save
+// clears offer from list of unassigned offers
+// and returns mimes to save
 static struct zzz_list *process_offer(struct daemon_device_state *state, struct zwlr_data_control_offer_v1 *offer) {
+    // normally this would be done in the replacement source (creation + cancellation)
+    // but if the replacement source never gets made/saved data is never used, we need to free
+    if (state->saved_items != NULL) {
+        zzz_list_free(state->saved_items, free_clip_item_void);
+        state->saved_items = NULL;
+    }
+
     struct full_offer full_offer;
     if (!full_offers_remove(&state->pending_offers, offer, &full_offer)) {
         fputs("selection given before offer\n", stderr);
         return NULL;
+    }
+
+    // if this is internal we don't want to store, so return no mimes
+    ZZZ_LIST_FOREACH(full_offer.mimes, mime_node) {
+        if (strcmp(mime_node->value, INTERNAL_MIME) == 0) {
+            zzz_list_free(full_offer.mimes, free);
+            return NULL;
+        }
     }
 
     // it was prepended to, so do this revert to insertion order
@@ -226,18 +243,11 @@ static struct zzz_list *process_offer(struct daemon_device_state *state, struct 
     // save ones we care about
     struct zzz_list *mimes_to_save = matching_mimes(daemon_opts.pref, full_offer.mimes);
     zzz_list_free(full_offer.mimes, free);
-    // normally this would be done when we make the replacement source
-    // but if the replacement source never gets made/saved data is never used, we need to free
-    if (mimes_to_save != NULL && state->saved_items != NULL) {
-        zzz_list_free(state->saved_items, free_clip_item_void);
-        state->saved_items = NULL;
-    }
-    // if we intend to save anything to saved_items at this point, it should be cleared
 
     return mimes_to_save;
 }
 
-static void receive_mimes(struct zzz_list *mimes_to_save, struct zwlr_data_control_offer_v1 *offer,
+static void receive_offer(struct zzz_list *mimes_to_save, struct zwlr_data_control_offer_v1 *offer,
     struct zzz_list **recv_fds, struct zzz_list **send_fds) {
     // store send fds to close after roundtrip
     // doesn't seem necessary, but closing before roundtripping feels weird
@@ -264,7 +274,7 @@ static void store_selection(struct daemon_device_state *state, struct zwlr_data_
 
     struct zzz_list *recv_fds = NULL;
     struct zzz_list *send_fds = NULL;
-    receive_mimes(mimes_to_save, offer, &recv_fds, &send_fds);
+    receive_offer(mimes_to_save, offer, &recv_fds, &send_fds);
 
     // won't start sending through pipe without roundtrip going through
     // would love to use wl_display_flush, but there's not really a way afaik to distinguish
@@ -296,8 +306,8 @@ static void replace_selection(struct daemon_device_state *state, struct zwlr_dat
         ZZZ_LIST_FOREACH(state->saved_items, curr_saved_item) {
             struct clip_item *item = curr_saved_item->value;
             zwlr_data_control_source_v1_offer(source, item->mime);
-
         }
+        zwlr_data_control_source_v1_offer(source, INTERNAL_MIME);
         zwlr_data_control_source_v1_add_listener(source, &source_listener, state->saved_items);
         zwlr_data_control_device_v1_set_selection(device, source);
         // this is now the source's responsibility, freed on cancelled event

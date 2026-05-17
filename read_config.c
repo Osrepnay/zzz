@@ -78,6 +78,9 @@ struct mime_pref get_config(void) {
     }
 }
 
+// the mimes this returns are owned/newly allocated
+// not super efficient but it makes freeing easier
+// would make it edit available_mimes, but pref order takes precedence over existing order
 struct zzz_list *matching_mimes(struct mime_pref pref, struct zzz_list *available_mimes) {
     switch (pref.type) {
     case SINGLE_MIME_ALL: {
