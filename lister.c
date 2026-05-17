@@ -41,7 +41,8 @@ bool print_line(struct zzz_list *filenames) {
             continue;
         }
         // TODO more flexible text mime recognition
-        if (strcmp(mime, "UTF8_STRING") == 0) {
+        if (strcmp(mime, "UTF8_STRING") == 0
+                || strstr(mime, "text/plain") != NULL) {
             char *old_data = NULL;
             if (data != NULL) {
                 old_data = data;
