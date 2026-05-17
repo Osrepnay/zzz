@@ -24,8 +24,6 @@
 struct wl_display *display;
 
 int main(int argc, char *argv[]) {
-    writer_init();
-
     daemon_opts.pref = get_config();
 
     display = wl_display_connect(NULL);
@@ -40,21 +38,19 @@ int main(int argc, char *argv[]) {
         },
     };
 
-    if (argc >= 2) {
-        if (strcmp(argv[1], "get") == 0) {
-            struct zzz_list *list = NULL;
-            for (int i = 2; i < argc; i++) {
-                zzz_list_prepend(&list, argv[i]);
-            }
-            zzz_list_reverse(&list);
-            registry_state.dcm_callback = getter_dcm_callback;
-            registry_state.callback_data = list;
-        } else if (strcmp(argv[1], "list") == 0) {
-            if (print_listing()) {
-                exit(EXIT_SUCCESS);
-            } else {
-                exit(EXIT_FAILURE);
-            }
+    if (argc >= 2 && strcmp(argv[1], "get") == 0) {
+        struct zzz_list *list = NULL;
+        for (int i = 2; i < argc; i++) {
+            zzz_list_prepend(&list, argv[i]);
+        }
+        zzz_list_reverse(&list);
+        registry_state.dcm_callback = getter_dcm_callback;
+        registry_state.callback_data = list;
+    } else if (argc >= 2 && strcmp(argv[1], "list") == 0) {
+        if (print_listing()) {
+            exit(EXIT_SUCCESS);
+        } else {
+            exit(EXIT_FAILURE);
         }
     } else {
         registry_state.dcm_callback = daemon_dcm_callback;
@@ -81,6 +77,8 @@ int main(int argc, char *argv[]) {
             }
         }
     }
+
+    writer_init();
 
     struct wl_registry *registry = wl_display_get_registry(display);
     wl_registry_add_listener(registry, &registry_listener, &registry_state);
