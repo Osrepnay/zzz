@@ -238,7 +238,6 @@ FILE *access_file(char *filename) {
     FILE *file = fopen(path, "r");
     free(path);
     if (file == NULL) {
-        perror("fopen");
         return NULL;
     }
     return file;
@@ -250,7 +249,6 @@ char *read_mime(FILE *file) {
     while ((c = fgetc(file)) != EOF && c != '\0') mime_len++;
     if (fseek(file, 0, SEEK_SET) != 0) {
         // ?
-        perror("fseek");
         return NULL;
     }
     char *mime = malloc(mime_len + 1);
@@ -268,21 +266,17 @@ char *read_mime(FILE *file) {
 bool read_data(FILE *file, char **data, size_t *len) {
     long starting_offset = ftell(file);
     if (starting_offset == -1) {
-        perror("ftell");
         return false;
     }
     // TODO apparently SEEK_END on binary files isn't portable?
     if (fseek(file, 0, SEEK_END) != 0) {
-        perror("fseek");
         return false;
     }
     long ending_offset = ftell(file);
     if (ending_offset == -1) {
-        perror("ftell");
         return false;
     }
     if (fseek(file, starting_offset, SEEK_SET) != 0) {
-        perror("fseek");
         return false;
     }
     long to_read = ending_offset - starting_offset;
