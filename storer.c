@@ -5,6 +5,7 @@
 
 #define _XOPEN_SOURCE 500
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,10 +50,12 @@ static void mkdirp(char *dir) {
 
 static char *write_dir;
 static char *index_path;
+static char *tmp_index_template;
 
 void path_init(void) {
     if (write_dir != NULL) free(write_dir);
     if (index_path != NULL) free(index_path);
+    if (tmp_index_template != NULL) free(tmp_index_template);
     char *basedir = getenv("XDG_STATE_HOME");
     if (basedir == NULL) {
         char *home = getenv("HOME");
@@ -79,6 +82,13 @@ void path_init(void) {
     strcat(index_path, write_dir);
     strcat(index_path, "/");
     strcat(index_path, index_filename);
+
+    char *filename_template = "indextmpXXXXXX";
+    tmp_index_template = malloc(strlen(write_dir) + 1 + strlen(filename_template) + 1);
+    tmp_index_template[0] = '\0';
+    strcat(tmp_index_template, write_dir);
+    strcat(tmp_index_template, "/");
+    strcat(tmp_index_template, filename_template);
 }
 
 // wrapper around zzz_list_free
@@ -89,6 +99,7 @@ static void void_zzz_list_free(void *list) {
 bool read_index(void) {
     zzz_list_free(storer_index, void_zzz_list_free);
     storer_index = NULL;
+
     FILE *index_file = fopen(index_path, "r");
     // return true because empty file, empty index
     if (index_file == NULL) {
@@ -135,25 +146,31 @@ bool read_index(void) {
             break;
         }
     }
+    zzz_list_reverse(&storer_index);
     fclose(index_file);
     return true;
 }
 
 bool write_index(void) {
-    FILE *index_file = fopen(index_path, "w");
-    if (index_file == NULL) return false;
+    char *tmp_path = strdup(tmp_index_template);
+    int tmp_index_fd = mkstemp(tmp_path);
+    // love buffering
+    FILE *tmp_index = fdopen(tmp_index_fd, "w");
+    if (tmp_index == NULL) return false;
     ZZZ_LIST_FOREACH(storer_index, curr_index) {
         struct zzz_list *filename_list = curr_index->value;
         zzz_list_reverse(&filename_list);
         ZZZ_LIST_FOREACH(filename_list, curr_filename_list) {
             char *filename = curr_filename_list->value;
-            fwrite(filename, 1, strlen(filename), index_file);
-            fputc(' ', index_file);
+            fwrite(filename, 1, strlen(filename), tmp_index);
+            fputc(' ', tmp_index);
         }
-        fputc('\n', index_file);
+        fputc('\n', tmp_index);
         zzz_list_reverse(&filename_list);
     }
-    fclose(index_file);
+    fclose(tmp_index);
+    if (!fsync(tmp_index_fd)) return false;
+    if (!rename(tmp_path, index_path)) return false;
     return true;
 }
 
@@ -182,6 +199,7 @@ bool write_items(struct zzz_list *clip_items) {
 
         char filename[FILENAME_CHARS + 1];
         char *data_path;
+        FILE *data_file;
         // loop to ensure no filename collisions (unlikely anyway)
         do {
             unsigned int filename_int = rand();
@@ -191,9 +209,10 @@ bool write_items(struct zzz_list *clip_items) {
             strcat(data_path, write_dir);
             strcat(data_path, "/");
             strcat(data_path, filename);
-        } while (access(data_path, F_OK) == 0);
-        FILE *data_file = fopen(data_path, "w");
-        free(data_path);
+            data_file = fopen(data_path, "wx");
+            free(data_path);
+        } while (data_file == NULL && errno == EEXIST);
+        // if true, this means we encountered error that isn't just EEXIST
         if (data_file == NULL) {
             zzz_list_free(filenames, free);
             return false;
@@ -204,7 +223,6 @@ bool write_items(struct zzz_list *clip_items) {
         fclose(data_file);
 
         zzz_list_prepend(&filenames, strdup(filename));
-
     }
     zzz_list_reverse(&filenames);
     zzz_list_prepend(&storer_index, filenames);
