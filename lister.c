@@ -2,8 +2,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "lister.h"
 #include "storer.h"
 #include "zzz_list.h"
+
+struct lister_opts lister_opts = {
+    .print_label = true,
+};
 
 static void fprint_textual(FILE *f, char *data, size_t len) {
     for (size_t i = 0; i < len; i++) {
@@ -28,7 +33,7 @@ bool fprint_line(FILE *f, struct zzz_list *filenames) {
     // one listed as a fallback
     char *chosen_filename;
     char *chosen_mime;
-    char *data;
+    char *data = NULL;
     size_t len;
     bool is_text = false;
     ZZZ_LIST_FOREACH(filenames, filename_node) {
@@ -42,7 +47,10 @@ bool fprint_line(FILE *f, struct zzz_list *filenames) {
         }
         // TODO more flexible text mime recognition
         if (strcmp(mime, "UTF8_STRING") == 0
+                || strcmp(mime, "TEXT") == 0
                 || strstr(mime, "text/plain") != NULL) {
+            // store for freeing later if
+            // data does indeed end up getting replaced
             char *old_data = NULL;
             if (data != NULL) {
                 old_data = data;
@@ -70,7 +78,9 @@ bool fprint_line(FILE *f, struct zzz_list *filenames) {
             break;
         }
     }
-    fprintf(f, "%s: ", chosen_filename);
+    if (lister_opts.print_label) {
+        fprintf(f, "%s: ", chosen_filename);
+    }
     bool success = true;
     if (is_text) {
         fprint_textual(f, data, len);
