@@ -1,3 +1,4 @@
 #include <stdbool.h>
+#include <stdio.h>
 
-bool print_listing(void);
+bool fprint_listing(FILE *f);

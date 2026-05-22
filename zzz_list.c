@@ -67,3 +67,14 @@ struct zzz_list *zzz_list_copy(struct zzz_list *list) {
     zzz_list_reverse(&copy);
     return copy;
 }
+
+void *zzz_list_by_idx(struct zzz_list *list, size_t idx) {
+    while (idx > 0) {
+        if (list == NULL) {
+            return NULL;
+        }
+        list = list->next;
+        idx--;
+    }
+    return list->value;
+}

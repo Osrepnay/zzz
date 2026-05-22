@@ -5,25 +5,25 @@
 #include "storer.h"
 #include "zzz_list.h"
 
-static void print_textual(char *data, size_t len) {
+static void fprint_textual(FILE *f, char *data, size_t len) {
     for (size_t i = 0; i < len; i++) {
         switch (data[i]) {
         case '\r':
         case '\n':
-            putchar(' ');
+            putc(' ', f);
             break;
         default:
-            putchar(data[i]);
+            putc(data[i], f);
         }
     }
-    putchar('\n');
+    putc('\n', f);
 }
 
-static void print_binary(char *mime, size_t len) {
-    printf("%s, %zu bytes\n", mime, len);
+static void fprint_binary(FILE *f, char *mime, size_t len) {
+    fprintf(f, "%s, %zu bytes\n", mime, len);
 }
 
-bool print_line(struct zzz_list *filenames) {
+bool fprint_line(FILE *f, struct zzz_list *filenames) {
     // defaults to utf8 text, uses the first
     // one listed as a fallback
     char *chosen_filename;
@@ -70,12 +70,12 @@ bool print_line(struct zzz_list *filenames) {
             break;
         }
     }
-    printf("%s: ", chosen_filename);
+    fprintf(f, "%s: ", chosen_filename);
     bool success = true;
     if (is_text) {
-        print_textual(data, len);
+        fprint_textual(f, data, len);
     } else if (chosen_mime != NULL) {
-        print_binary(chosen_mime, len);
+        fprint_binary(f, chosen_mime, len);
     } else {
         success = false;
     }
@@ -84,14 +84,14 @@ bool print_line(struct zzz_list *filenames) {
     return success;
 }
 
-bool print_listing(void) {
+bool fprint_listing(FILE *f) {
     path_init();
     if (!read_index()) {
         fputs("failed to read index file", stderr);
         return false;
     }
     ZZZ_LIST_FOREACH(storer_index, index_node) {
-        if (!print_line(index_node->value)) {
+        if (!fprint_line(f, index_node->value)) {
             return false;
         }
     }
