@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <fcntl.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -119,13 +120,14 @@ static void handle_command(struct wl_objs *wl_objs) {
         close(stdin_fds[0]);
         close(stdout_fds[1]);
         FILE *file = fdopen(stdin_fds[1], "w");
-        // TODO handle sigpipe
+        signal(SIGPIPE, SIG_IGN);
         if (!fprint_listing(file)) {
             failed = true;
         }
+        signal(SIGPIPE, SIG_DFL);
         fclose(file);
         if (failed) {
-            // fprint_listing should report the error itself
+            fputs("failed to send data to selector\n", stderr);
             close(stdout_fds[0]);
             break;
         }

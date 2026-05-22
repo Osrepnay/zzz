@@ -10,22 +10,23 @@ struct lister_opts lister_opts = {
     .print_label = true,
 };
 
-static void fprint_textual(FILE *f, char *data, size_t len) {
+static bool fprint_textual(FILE *f, char *data, size_t len) {
     for (size_t i = 0; i < len; i++) {
         switch (data[i]) {
         case '\r':
         case '\n':
-            putc(' ', f);
+            if (putc(' ', f) == EOF) return false;
             break;
         default:
-            putc(data[i], f);
+            if (putc(data[i], f) == EOF) return false;
         }
     }
-    putc('\n', f);
+    if (putc('\n', f) == EOF) return false;
+    return true;
 }
 
-static void fprint_binary(FILE *f, char *mime, size_t len) {
-    fprintf(f, "%s, %zu bytes\n", mime, len);
+static bool fprint_binary(FILE *f, char *mime, size_t len) {
+    return fprintf(f, "%s, %zu bytes\n", mime, len) >= 0;
 }
 
 bool fprint_line(FILE *f, struct zzz_list *filenames) {
@@ -81,11 +82,11 @@ bool fprint_line(FILE *f, struct zzz_list *filenames) {
     if (lister_opts.print_label) {
         fprintf(f, "%s: ", chosen_filename);
     }
-    bool success = true;
+    bool success;
     if (is_text) {
-        fprint_textual(f, data, len);
+        success = fprint_textual(f, data, len);
     } else if (chosen_mime != NULL) {
-        fprint_binary(f, chosen_mime, len);
+        success = fprint_binary(f, chosen_mime, len);
     } else {
         success = false;
     }
