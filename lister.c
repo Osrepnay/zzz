@@ -80,7 +80,7 @@ bool fprint_line(FILE *f, struct zzz_list *filenames) {
         }
     }
     if (lister_opts.print_label) {
-        fprintf(f, "%s: ", chosen_filename);
+        fprintf(f, "%s\t", chosen_filename);
     }
     bool success;
     if (is_text) {
