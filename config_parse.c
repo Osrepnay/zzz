@@ -24,21 +24,11 @@ bool try_char(struct parse_state *state, char c) {
 
 static char *whitespace = " \n\r\t";
 
-bool string_contains(char *str, char c) {
-    while (*str != '\0') {
-        if (*str == c) {
-            return true;
-        }
-        str++;
-    }
-    return false;
-}
-
 bool take_whitespace(struct parse_state *state) {
     bool took = false;
     // whitespace is not comprehensive but in what serious scenario
     // are you gonna have anything else in your config file
-    while (!is_eof(state) && string_contains(whitespace, peek_char(state))) {
+    while (!is_eof(state) && strchr(whitespace, peek_char(state)) != NULL) {
         took = true;
         state->idx++;
     };
@@ -49,8 +39,8 @@ bool take_whitespace(struct parse_state *state) {
 bool try_string(struct parse_state *state, char **string_ret) {
     size_t string_len = 0;
     while (!is_eof(state)
-            && !string_contains("[]()", peek_char(state))
-            && !string_contains(whitespace, peek_char(state))) {
+            && strchr("[]()", peek_char(state)) == NULL
+            && strchr(whitespace, peek_char(state)) == NULL) {
         string_len++;
         state->idx++;
     }
