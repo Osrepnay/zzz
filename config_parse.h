@@ -28,12 +28,31 @@ struct mime_pref {
     } inner;
 };
 
+enum kv_value_type {
+    KV_VALUE_INTEGER, KV_VALUE_MIME_PREF
+};
+
+struct kv_value {
+    enum kv_value_type type;
+    union {
+        long long integer;
+        struct mime_pref mime_pref;
+    };
+};
+
+struct keyvalue {
+    char *key;
+    struct kv_value value;
+};
+
 struct parse_state {
     char *text;
     size_t text_len;
     size_t idx;
+    size_t line;
+    size_t column;
 };
 
-bool parse_mime_prefs(char *text, struct mime_pref *mime_pref);
+bool parse_config(char *text, struct zzz_list *ret_keyvalues);
 
 #endif

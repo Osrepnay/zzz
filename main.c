@@ -1,16 +1,6 @@
 #define _XOPEN_SOURCE 500
 
-#include <dirent.h>
-#include <fcntl.h>
-#include <poll.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <wayland-client.h>
-#include <wayland-util.h>
-#include <sys/select.h>
 
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include <pcre2.h>
@@ -24,7 +14,33 @@
 struct wl_display *display;
 
 int main(int argc, char *argv[]) {
-    daemon_opts.pref = get_config();
+    struct zzz_list config = get_config();
+    ZZZ_LIST_FOREACH(config, config_node) {
+        struct keyvalue *keyvalue = config_node->value;
+        if (strcmp(keyvalue->key, "mime-pref") == 0) {
+            if (keyvalue->value.type != KV_VALUE_MIME_PREF) {
+                fputs("improper type for mime-pref in config: expected mime preferences\n", stderr);
+                exit(EXIT_FAILURE);
+            }
+            daemon_opts.pref = keyvalue->value.mime_pref;
+        } else if (strcmp(keyvalue->key, "max-entries") == 0) {
+            if (keyvalue->value.type != KV_VALUE_INTEGER) {
+                fputs("improper type for max-entries in config: expected integer\n", stderr);
+                exit(EXIT_FAILURE);
+            }
+            daemon_opts.max_entries = keyvalue->value.integer;
+        } else if (strcmp(keyvalue->key, "max-item-size") == 0) {
+            if (keyvalue->value.type != KV_VALUE_INTEGER) {
+                fputs("improper type for max-item-size in config: expected integer\n", stderr);
+                exit(EXIT_FAILURE);
+            }
+            daemon_opts.max_item_size = keyvalue->value.integer;
+        } else {
+            fprintf(stderr, "unknown config value: %s\n", keyvalue->key);
+            exit(EXIT_FAILURE);
+        }
+    }
+    puts("done");
 
     display = wl_display_connect(NULL);
     if (display == NULL) {

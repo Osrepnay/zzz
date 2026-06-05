@@ -35,7 +35,7 @@ static char *config_path(void) {
     }
 }
 
-struct mime_pref get_config(void) {
+struct zzz_list get_config(void) {
     char *path = config_path();
     int config_fd = open(path, O_RDWR);
     free(path);
@@ -58,12 +58,12 @@ struct mime_pref get_config(void) {
         close(config_fd);
         config_text[config_text_len] = '\0';
 
-        struct mime_pref pref;
-        if (parse_mime_prefs(config_text, &pref)) {
+        struct zzz_list config;
+        if (parse_config(config_text, &config)) {
             free(config_text);
-            return pref;
+            return config;
         } else {
-            fputs("corrupt config file\n", stderr);
+            fputs("couldn't read config file, aborting\n", stderr);
             exit(EXIT_FAILURE);
         }
     } else {
@@ -71,10 +71,10 @@ struct mime_pref get_config(void) {
         // TODO use #embed or something
         char *default_text =
             "[(image/png image/jpeg image/.*)"
-            "(text/.*)]";
-        struct mime_pref pref;
-        assert(parse_mime_prefs(default_text, &pref));
-        return pref;
+            "(UTF8_STRING text/plain;charset=utf-8 text/.*)]";
+        struct zzz_list config;
+        assert(parse_config(default_text, &config));
+        return config;
     }
 }
 

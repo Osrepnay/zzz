@@ -8,7 +8,7 @@
 // move this at some point, this is kinda a strange place to put it
 #define INTERNAL_MIME "application/x-zzzclip"
 
-struct mime_pref get_config(void);
+struct zzz_list get_config(void);
 struct zzz_list matching_mimes(struct mime_pref pref, struct zzz_list *available_mimes);
 
 #endif

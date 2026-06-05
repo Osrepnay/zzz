@@ -3,6 +3,8 @@
 
 struct daemon_opts {
     bool replace;
+    long long max_entries;
+    long long max_item_size;
     struct mime_pref pref;
 };
 
