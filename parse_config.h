@@ -1,5 +1,5 @@
-#ifndef CONFIG_PARSE_H
-#define CONFIG_PARSE_H
+#ifndef PARSE_CONFIG_H
+#define PARSE_CONFIG_H
 
 #include <stdbool.h>
 #include <stddef.h>

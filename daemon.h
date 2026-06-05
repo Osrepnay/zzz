@@ -1,4 +1,4 @@
-#include "config_parse.h"
+#include "parse_config.h"
 #include "registry.h"
 
 struct daemon_opts {

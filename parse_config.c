@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "config_parse.h"
+#include "parse_config.h"
 
 #define TRY_ALTERNATIVE(state, func) \
     { \

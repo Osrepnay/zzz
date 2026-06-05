@@ -1,7 +1,7 @@
 #ifndef READ_CONFIG_H
 #define READ_CONFIG_H
 
-#include "config_parse.h"
+#include "parse_config.h"
 
 // this is needed to mark mimes as being from zzzclip
 // daemon will ignore these, otherwise history gets duplicated
