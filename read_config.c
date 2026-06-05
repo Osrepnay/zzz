@@ -80,29 +80,27 @@ struct mime_pref get_config(void) {
 
 // the mimes this returns are owned/newly allocated
 // not super efficient but it makes freeing easier
-// would make it edit available_mimes, but pref order takes precedence over existing order
-struct zzz_list *matching_mimes(struct mime_pref pref, struct zzz_list *available_mimes) {
+// would make it filter through available_mimes, but pref order takes precedence over existing order
+// so then we would have to rearrange entries and it'd be a whole thing
+struct zzz_list matching_mimes(struct mime_pref pref, struct zzz_list *available_mimes) {
     switch (pref.type) {
     case SINGLE_MIME_ALL: {
-        struct zzz_list *matching_mimes = NULL;
-        ZZZ_LIST_FOREACH(available_mimes, available_mime) {
+        struct zzz_list matching_mimes = zzz_list_empty;
+        ZZZ_LIST_FOREACH(*available_mimes, available_mime) {
             unsigned char *mime = available_mime->value;
-            // still not sure what the SAVE_TARGETS mimetype is
-            // (couldn't get much from freedesktop.org/wiki/ClipboardManager)
-            // but requesting SAVE_TARGETS hangs on read so let's not do that
-            if (strcmp(available_mime->value, "SAVE_TARGETS") != 0) {
-                int match = pcre2_match(pref.inner.regex.code, mime, PCRE2_ZERO_TERMINATED, 0, 0,
-                        pref.inner.regex.match_data, NULL);
-                if (match >= 0) {
-                    zzz_list_prepend(&matching_mimes, strdup(available_mime->value));
-                }
+            // this used to have a check for SAVE_TARGETS
+            // but that only really gets triggered if your mime is .* or something
+            // which is bad
+            int match = pcre2_match(pref.inner.regex.code, mime, PCRE2_ZERO_TERMINATED, 0, 0,
+                    pref.inner.regex.match_data, NULL);
+            if (match >= 0) {
+                zzz_list_append(&matching_mimes, strdup(available_mime->value));
             }
         }
-        zzz_list_reverse(&matching_mimes);
         return matching_mimes;
     }
     case SINGLE_MIME_FIRST: {
-        ZZZ_LIST_FOREACH(available_mimes, available_mime) {
+        ZZZ_LIST_FOREACH(*available_mimes, available_mime) {
             unsigned char *mime = available_mime->value;
             int match = pcre2_match(pref.inner.regex.code, mime, PCRE2_ZERO_TERMINATED, 0, 0,
                     pref.inner.regex.match_data, NULL);
@@ -110,51 +108,49 @@ struct zzz_list *matching_mimes(struct mime_pref pref, struct zzz_list *availabl
                 return zzz_list_singleton(strdup(available_mime->value));
             }
         }
-        return NULL;
+        return zzz_list_empty;
     }
     case STORE_FIRST_MATCHING: {
-        ZZZ_LIST_FOREACH(pref.inner.subprefs, curr_subpref) {
-            struct mime_pref *subpref = curr_subpref->value;
-            struct zzz_list *subpref_matching = matching_mimes(*subpref, available_mimes);
-            if (subpref_matching != NULL) {
+        ZZZ_LIST_FOREACH(pref.inner.subprefs, subpref_node) {
+            struct mime_pref *subpref = subpref_node->value;
+            struct zzz_list subpref_matching = matching_mimes(*subpref, available_mimes);
+            if (subpref_matching.len > 0) {
                 return subpref_matching;
             } else {
-                zzz_list_free(subpref_matching, NULL);
+                zzz_list_free(&subpref_matching, NULL);
             }
         }
-        return NULL;
+        return zzz_list_empty;
     }
     case STORE_ALL_MATCHING: {
-        struct zzz_list *all_matching = NULL;
-        // mimes are removed when added so no duplicates
-        struct zzz_list *remaining_mimes = zzz_list_copy(available_mimes);
+        struct zzz_list all_matching = zzz_list_empty;
 
-        ZZZ_LIST_FOREACH(pref.inner.subprefs, curr_subpref) {
-            struct mime_pref *subpref = curr_subpref->value;
-            struct zzz_list *subpref_matching = matching_mimes(*subpref, remaining_mimes);
-            ZZZ_LIST_FOREACH(subpref_matching, curr_subpref_matching) {
-                // cull from remaining_mimes list
-                struct zzz_list **curr_remaining = &remaining_mimes;
-                while (*curr_remaining != NULL) {
-                    if ((*curr_remaining)->value == curr_subpref_matching->value) {
-                        struct zzz_list *next = (*curr_remaining)->next;
-                        free(*curr_remaining);
-                        *curr_remaining = next;
+        ZZZ_LIST_FOREACH(pref.inner.subprefs, subpref_node) {
+            struct mime_pref *subpref = subpref_node->value;
+            struct zzz_list subpref_matching = matching_mimes(*subpref, available_mimes);
+            ZZZ_LIST_FOREACH(subpref_matching, subpref_matching_node) {
+                // make sure it's not already been added to all_matching
+                // if only we had, like, sets or something
+                // mime lists should be really short anyway, but TODO
+                bool exists = false;
+                ZZZ_LIST_FOREACH(all_matching, all_matching_node) {
+                    if (strcmp(all_matching_node->value, subpref_matching_node->value) == 0) {
+                        exists = true;
                         break;
-                    } else {
-                        curr_remaining = &(*curr_remaining)->next;
                     }
                 }
-                zzz_list_prepend(&all_matching, curr_subpref_matching->value);
+                if (!exists) {
+                    zzz_list_append(&all_matching, subpref_matching_node->value);
+                } else {
+                    free(subpref_matching_node->value);
+                }
             }
-            zzz_list_free(subpref_matching, NULL);
+            zzz_list_free(&subpref_matching, NULL);
         }
-        zzz_list_free(remaining_mimes, NULL);
-        zzz_list_reverse(&all_matching);
         return all_matching;
     }
     default:
         fputs("unknown enum value\n", stderr);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 }

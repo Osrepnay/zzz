@@ -20,7 +20,7 @@ struct getter_opts getter_opts;
 static void source_send(void *data, struct zwlr_data_control_source_v1 *source, const char *mime_type, int32_t fd) {
     (void) source;
     (void) mime_type;
-    ZZZ_LIST_FOREACH(data, item_list) {
+    ZZZ_LIST_FOREACH(*(struct zzz_list *)data, item_list) {
         struct clip_item *item = item_list->value;
         if (strcmp(item->mime, mime_type) == 0) {
             // TODO partial writes?
@@ -45,21 +45,21 @@ static struct zwlr_data_control_source_v1_listener source_listener = {
     .cancelled = &source_cancelled
 };
 
-static void handle_labels(struct wl_objs *wl_objs, struct zzz_list *labels) {
-    struct zzz_list *clip_items = NULL;
-    ZZZ_LIST_FOREACH(labels, filename_node) {
+static void handle_labels(struct wl_objs *wl_objs, const struct zzz_list *labels) {
+    struct zzz_list *clip_items = malloc(sizeof(*clip_items));
+    *clip_items = zzz_list_empty;
+    ZZZ_LIST_FOREACH(*labels, filename_node) {
         char *filename = filename_node->value;
         struct clip_item *clip_item = malloc(sizeof(*clip_item));
         if (!read_item(filename, clip_item)) {
             fprintf(stderr, "error reading file %s, aborting\n", filename);
             exit(EXIT_FAILURE);
         }
-        zzz_list_prepend(&clip_items, clip_item);
+        zzz_list_append(clip_items, clip_item);
     }
-    zzz_list_reverse(&clip_items);
     struct zwlr_data_control_source_v1 *source =
         zwlr_data_control_manager_v1_create_data_source(wl_objs->data_control_manager);
-    ZZZ_LIST_FOREACH(clip_items, clip_item_node) {
+    ZZZ_LIST_FOREACH(*clip_items, clip_item_node) {
         struct clip_item *clip_item = clip_item_node->value;
         zwlr_data_control_source_v1_offer(source, clip_item->mime);
     }
@@ -156,7 +156,7 @@ static void handle_command(struct wl_objs *wl_objs) {
             failed = true;
             break;
         }
-        struct zzz_list *labels = zzz_list_by_idx(storer_index, idx);
+        struct zzz_list *labels = zzz_list_by_idx(&storer_index, idx);
         if (labels != NULL) {
             handle_labels(wl_objs, labels);
         } else {
@@ -180,7 +180,7 @@ void getter_dcm_callback(void *data, struct wl_objs *wl_objs) {
         handle_command(wl_objs);
         break;
     case GETTER_MODE_LABELS:
-        handle_labels(wl_objs, getter_opts.args.labels);
+        handle_labels(wl_objs, &getter_opts.args.labels);
         break;
     }
 }

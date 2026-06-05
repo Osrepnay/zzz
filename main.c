@@ -69,11 +69,10 @@ int main(int argc, char *argv[]) {
             getter_opts.args.command.command_len = argc;
         } else {
             getter_opts.mode = GETTER_MODE_LABELS;
-            struct zzz_list *list = NULL;
+            struct zzz_list list = zzz_list_empty;
             for (int i = 2; i < argc; i++) {
-                zzz_list_prepend(&list, argv[i]);
+                zzz_list_append(&list, argv[i]);
             }
-            zzz_list_reverse(&list);
             getter_opts.args.labels = list;
         }
         registry_state.dcm_callback = getter_dcm_callback;

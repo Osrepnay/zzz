@@ -20,7 +20,7 @@
 #define STRINGIFY(a) STRINGIFY_VALUE(a)
 #define STRINGIFY_VALUE(a) #a
 
-struct zzz_list *storer_index;
+struct zzz_list storer_index;
 
 void free_clip_item_void(void *clip_item_void) {
     struct clip_item *clip_item = clip_item_void;
@@ -93,19 +93,20 @@ void path_init(void) {
 
 // wrapper around zzz_list_free
 static void void_zzz_list_free(void *list) {
-    zzz_list_free((struct zzz_list *) list, free);
+    zzz_list_free((struct zzz_list *)list, free);
+    free(list);
 }
 
 bool read_index(void) {
-    zzz_list_free(storer_index, void_zzz_list_free);
-    storer_index = NULL;
+    zzz_list_free(&storer_index, void_zzz_list_free);
+    storer_index = zzz_list_empty;
 
     FILE *index_file = fopen(index_path, "r");
     // return true because empty file, empty index
     if (index_file == NULL) {
         return true;
     }
-    struct zzz_list *curr_set = NULL;
+    struct zzz_list curr_set = zzz_list_empty;
     while (true) {
         char filename[FILENAME_CHARS + 1];
         size_t filename_len = 0;
@@ -131,22 +132,22 @@ bool read_index(void) {
             if (filename_ended) {
                 if (filename_len > 0) {
                     filename[filename_len] = '\0';
-                    zzz_list_prepend(&curr_set, strdup(filename));
+                    zzz_list_append(&curr_set, strdup(filename));
                 }
                 break;
             }
         }
 
-        if (set_ended && curr_set != NULL) {
-            zzz_list_reverse(&curr_set);
-            zzz_list_prepend(&storer_index, curr_set);
-            curr_set = NULL;
+        if (set_ended && curr_set.len > 0) {
+            struct zzz_list *curr_set_alloc = malloc(sizeof(*curr_set_alloc));
+            *curr_set_alloc = curr_set;
+            zzz_list_append(&storer_index, curr_set_alloc);
+            curr_set = zzz_list_empty;
         }
         if (file_ended) {
             break;
         }
     }
-    zzz_list_reverse(&storer_index);
     fclose(index_file);
     return true;
 }
@@ -159,18 +160,23 @@ bool write_index(void) {
     if (tmp_index == NULL) return false;
     ZZZ_LIST_FOREACH(storer_index, curr_index) {
         struct zzz_list *filename_list = curr_index->value;
-        zzz_list_reverse(&filename_list);
-        ZZZ_LIST_FOREACH(filename_list, curr_filename_list) {
+        ZZZ_LIST_FOREACH(*filename_list, curr_filename_list) {
             char *filename = curr_filename_list->value;
             fwrite(filename, 1, strlen(filename), tmp_index);
             fputc(' ', tmp_index);
         }
         fputc('\n', tmp_index);
-        zzz_list_reverse(&filename_list);
     }
     fclose(tmp_index);
-    if (!fsync(tmp_index_fd)) return false;
-    if (!rename(tmp_path, index_path)) return false;
+    if (!fsync(tmp_index_fd)) {
+        free(tmp_path);
+        return false;
+    }
+    if (!rename(tmp_path, index_path)) {
+        free(tmp_path);
+        return false;
+    }
+    free(tmp_path);
     return true;
 }
 
@@ -183,7 +189,7 @@ void writer_init(void) {
     }
 }
 
-bool write_items(struct zzz_list *clip_items) {
+bool write_items(const struct zzz_list *clip_items) {
     // it won't actually break if it doesn't return (i think)
     // but the index reader will just skip empty sets of items
     // so this'll make sure reading from the file results in the same index
@@ -193,8 +199,8 @@ bool write_items(struct zzz_list *clip_items) {
         return true;
     }
 
-    struct zzz_list *filenames = NULL;
-    ZZZ_LIST_FOREACH(clip_items, curr_clip_item) {
+    struct zzz_list filenames = zzz_list_empty;
+    ZZZ_LIST_FOREACH(*clip_items, curr_clip_item) {
         struct clip_item *item = curr_clip_item->value;
 
         char filename[FILENAME_CHARS + 1];
@@ -214,7 +220,7 @@ bool write_items(struct zzz_list *clip_items) {
         } while (data_file == NULL && errno == EEXIST);
         // if true, this means we encountered error that isn't just EEXIST
         if (data_file == NULL) {
-            zzz_list_free(filenames, free);
+            zzz_list_free(&filenames, free);
             return false;
         }
         fputs(item->mime, data_file);
@@ -222,14 +228,15 @@ bool write_items(struct zzz_list *clip_items) {
         fwrite(item->data, 1, item->len, data_file);
         fclose(data_file);
 
-        zzz_list_prepend(&filenames, strdup(filename));
+        zzz_list_append(&filenames, strdup(filename));
     }
-    zzz_list_reverse(&filenames);
-    zzz_list_prepend(&storer_index, filenames);
+    struct zzz_list *filenames_alloc = malloc(sizeof(*filenames_alloc));
+    *filenames_alloc = filenames;
+    zzz_list_prepend(&storer_index, filenames_alloc);
     return write_index();
 }
 
-FILE *access_file(char *filename) {
+FILE *access_file(const char *filename) {
     char *path = malloc(strlen(write_dir) + 1 + strlen(filename) + 1);
     path[0] = '\0';
     strcat(path, write_dir);
@@ -286,7 +293,7 @@ bool read_data(FILE *file, char **data, size_t *len) {
     return true;
 }
 
-bool read_item(char *filename, struct clip_item *res) {
+bool read_item(const char *filename, struct clip_item *res) {
     bool status = false;
 
     FILE *file = access_file(filename);

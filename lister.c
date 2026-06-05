@@ -10,7 +10,7 @@ struct lister_opts lister_opts = {
     .print_label = true,
 };
 
-static bool fprint_textual(FILE *f, char *data, size_t len) {
+static bool fprint_textual(FILE *f, const char *data, size_t len) {
     for (size_t i = 0; i < len; i++) {
         switch (data[i]) {
         case '\r':
@@ -29,7 +29,7 @@ static bool fprint_binary(FILE *f, char *mime, size_t len) {
     return fprintf(f, "%s, %zu bytes\n", mime, len) >= 0;
 }
 
-bool fprint_line(FILE *f, struct zzz_list *filenames) {
+bool fprint_line(FILE *f, const struct zzz_list *filenames) {
     // defaults to utf8 text, uses the first
     // one listed as a fallback
     char *chosen_filename;
@@ -37,7 +37,7 @@ bool fprint_line(FILE *f, struct zzz_list *filenames) {
     char *data = NULL;
     size_t len;
     bool is_text = false;
-    ZZZ_LIST_FOREACH(filenames, filename_node) {
+    ZZZ_LIST_FOREACH(*filenames, filename_node) {
         FILE *file = access_file(filename_node->value);
         // is it a good idea to silently skip?
         if (file == NULL) continue;

@@ -15,16 +15,16 @@ struct clip_item {
 
 // the index is stored with recent at top
 // each entry is a list of filenames
-extern struct zzz_list *storer_index;
+extern struct zzz_list storer_index;
 
 void path_init(void);
 void writer_init(void);
 bool read_index(void);
-bool write_items(struct zzz_list *clip_items);
-FILE *access_file(char *filename);
+bool write_items(const struct zzz_list *clip_items);
+FILE *access_file(const char *filename);
 char *read_mime(FILE *file);
 bool read_data(FILE *file, char **data, size_t *len);
-bool read_item(char *filename, struct clip_item *res);
+bool read_item(const char *filename, struct clip_item *res);
 void free_clip_item_void(void *clip_item_void);
 
 #endif

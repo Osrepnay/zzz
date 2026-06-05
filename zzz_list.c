@@ -2,79 +2,104 @@
 
 #include "zzz_list.h"
 
-struct zzz_list *zzz_list_singleton(void *value) {
-    struct zzz_list *list = malloc(sizeof(*list));
-    *list = (struct zzz_list) {
+const struct zzz_list zzz_list_empty = {
+    .len = 0,
+    .head = NULL,
+    .last = NULL,
+};
+
+struct zzz_list zzz_list_singleton(void *value) {
+    struct zzz_node *node = malloc(sizeof(*node));
+    *node = (struct zzz_node) {
         .value = value,
+        .prev = NULL,
         .next = NULL,
     };
-    return list;
+    return (struct zzz_list) {
+        .len = 1,
+        .head = node,
+        .last = node,
+    };
 }
 
 void zzz_list_free(struct zzz_list *list, void free_func(void *)) {
-    while (list != NULL) {
+    // can't use foreach, we are freeing nodes on the way
+    struct zzz_node *node = list->head;
+    while (node != NULL) {
         if (free_func != NULL) {
-            free_func(list->value);
+            free_func(node->value);
         }
-        struct zzz_list *before = list;
-        list = list->next;
-        free(before);
+        struct zzz_node *next = node->next;
+        free(node);
+        node = next;
     }
+    *list = zzz_list_empty;
 }
 
-size_t zzz_list_len(struct zzz_list *list) {
-    size_t len = 0;
-    while (list != NULL) {
-        len++;
-        list = list->next;
+void zzz_list_prepend(struct zzz_list *list, void *value) {
+    struct zzz_node *node = malloc(sizeof(*node));
+    *node = (struct zzz_node) {
+        .value = value,
+        .next = list->head,
+    };
+    if (list->head != NULL) {
+        list->head->prev = node;
+    } else {
+        list->last = node;
     }
-    return len;
+    list->head = node;
+    list->len++;
 }
 
-void zzz_list_prepend(struct zzz_list **list, void *value) {
-    struct zzz_list *new_list = zzz_list_singleton(value);
-    new_list->next = *list;
-    *list = new_list;
+void zzz_list_append(struct zzz_list *list, void *value) {
+    struct zzz_node *node = malloc(sizeof(*node));
+    *node = (struct zzz_node) {
+        .value = value,
+        .next = NULL,
+    };
+    if (list->last != NULL) {
+        list->last->next = node;
+    } else {
+        list->head = node;
+    }
+    list->last = node;
+    list->len++;
 }
 
-void *zzz_list_tail(struct zzz_list **list) {
-    if (*list == NULL) {
-        return NULL;
+void zzz_list_remove_node(struct zzz_list *list, struct zzz_node *node) {
+    list->len--;
+    if (list->head == node) {
+        list->head = NULL;
     }
-    void *value = (*list)->value;
-    *list = (*list)->next;
-    return value;
-}
+    if (list->last == node) {
+        list->last = NULL;
+    }
 
-void zzz_list_reverse(struct zzz_list **list) {
-    struct zzz_list *reversed = NULL;
-    while (*list != NULL) {
-        struct zzz_list *real_next = (*list)->next;
-        (*list)->next = reversed;
-        reversed = *list;
-        *list = real_next;
+    struct zzz_node *tmp_next = node->next;
+    if (tmp_next != NULL) {
+        tmp_next->prev = node->prev;
     }
-    *list = reversed;
+    if (node->prev != NULL) {
+        node->prev->next = tmp_next;
+    }
+    free(node);
 }
 
 // only copies structure, pointers are not copied
-struct zzz_list *zzz_list_copy(struct zzz_list *list) {
-    struct zzz_list *copy = NULL;
-    while (list != NULL) {
-        zzz_list_prepend(&copy, list->value);
-        list = list->next;
+struct zzz_list zzz_list_copy(const struct zzz_list *list) {
+    struct zzz_list copy = zzz_list_empty;
+    ZZZ_LIST_FOREACH(*list, node) {
+        zzz_list_append(&copy, node->value);
     }
-    zzz_list_reverse(&copy);
     return copy;
 }
 
-void *zzz_list_by_idx(struct zzz_list *list, size_t idx) {
-    while (idx > 0) {
-        if (list == NULL) {
-            return NULL;
+void *zzz_list_by_idx(const struct zzz_list *list, size_t idx) {
+    ZZZ_LIST_FOREACH(*list, node) {
+        if (idx == 0) {
+            return node->value;
         }
-        list = list->next;
         idx--;
     }
-    return list->value;
+    return NULL;
 }

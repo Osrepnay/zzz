@@ -70,7 +70,7 @@ void free_pref(struct mime_pref *prefs) {
         break;
     case STORE_ALL_MATCHING:
     case STORE_FIRST_MATCHING: {
-        zzz_list_free(prefs->inner.subprefs, free_pref_void);
+        zzz_list_free(&prefs->inner.subprefs, free_pref_void);
     }
     }
     free(prefs);
@@ -83,7 +83,7 @@ enum parent_type {
 bool try_mime_pref(struct parse_state *, struct mime_pref *, enum parent_type parent_type);
 
 // pref with specific parenthesis type
-bool try_paren_pref(struct parse_state *state, enum parent_type parent_type, struct zzz_list **subprefs) {
+bool try_paren_pref(struct parse_state *state, enum parent_type parent_type, struct zzz_list *subprefs) {
     char *paren_chars = "";
     switch (parent_type) {
     case PARENT_ALL:
@@ -100,27 +100,26 @@ bool try_paren_pref(struct parse_state *state, enum parent_type parent_type, str
     if (!try_char(state, paren_chars[0])) return false;
     take_whitespace(state);
 
-    *subprefs = NULL;
+    *subprefs = zzz_list_empty;
     struct mime_pref curr_subpref;
     while (try_mime_pref(state, &curr_subpref, parent_type)) {
         struct mime_pref *allocated = malloc(sizeof(*allocated));
         *allocated = curr_subpref;
-        zzz_list_prepend(subprefs, allocated);
+        zzz_list_append(subprefs, allocated);
     }
-    zzz_list_reverse(subprefs);
 
     if (try_char(state, paren_chars[1])) {
         take_whitespace(state);
         return true;
     } else {
-        zzz_list_free(*subprefs, free_pref_void);
+        zzz_list_free(subprefs, free_pref_void);
         state->idx = starting_idx;
         return false;
     }
 }
 
 bool try_mime_pref(struct parse_state *state, struct mime_pref *mime_pref, enum parent_type parent_type) {
-    struct zzz_list *subprefs;
+    struct zzz_list subprefs;
     char *regex;
     if (try_paren_pref(state, PARENT_ALL, &subprefs)) {
         *mime_pref = (struct mime_pref) {

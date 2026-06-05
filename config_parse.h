@@ -24,7 +24,7 @@ struct mime_pref {
     enum mime_pref_type type;
     union {
         struct regex_with_match_data regex;
-        struct zzz_list *subprefs;
+        struct zzz_list subprefs;
     } inner;
 };
 
