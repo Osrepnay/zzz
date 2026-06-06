@@ -40,6 +40,7 @@ void zzz_list_prepend(struct zzz_list *list, void *value) {
     struct zzz_list_node *node = malloc(sizeof(*node));
     *node = (struct zzz_list_node) {
         .value = value,
+        .prev = NULL,
         .next = list->head,
     };
     if (list->head != NULL) {
@@ -55,6 +56,7 @@ void zzz_list_append(struct zzz_list *list, void *value) {
     struct zzz_list_node *node = malloc(sizeof(*node));
     *node = (struct zzz_list_node) {
         .value = value,
+        .prev = list->last,
         .next = NULL,
     };
     if (list->last != NULL) {
