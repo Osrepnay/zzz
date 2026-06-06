@@ -70,7 +70,7 @@ struct zzz_list get_config(void) {
         // couldn't access read config file, use default
         // TODO use #embed or something
         char *default_text =
-            "[(image/png image/jpeg image/.*)"
+            "mime-pref=[(image/png image/jpeg image/.*) "
             "(UTF8_STRING text/plain;charset=utf-8 text/.*)]";
         struct zzz_list config;
         assert(parse_config(default_text, &config));
