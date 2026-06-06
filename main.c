@@ -40,7 +40,6 @@ int main(int argc, char *argv[]) {
             exit(EXIT_FAILURE);
         }
     }
-    puts("done");
 
     display = wl_display_connect(NULL);
     if (display == NULL) {
