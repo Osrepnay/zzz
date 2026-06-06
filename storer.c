@@ -189,7 +189,7 @@ void writer_init(void) {
     }
 }
 
-static char *path_from_label(char *label) {
+static char *path_from_label(const char *label) {
     char *path = malloc(strlen(write_dir) + 1 + strlen(label) + 1);
     path[0] = '\0';
     strcat(path, write_dir);
@@ -291,11 +291,7 @@ bool write_items(const struct zzz_list *clip_items) {
 }
 
 FILE *access_file(const char *filename) {
-    char *path = malloc(strlen(write_dir) + 1 + strlen(filename) + 1);
-    path[0] = '\0';
-    strcat(path, write_dir);
-    strcat(path, "/");
-    strcat(path, filename);
+    char *path = path_from_label(filename);
     FILE *file = fopen(path, "r");
     free(path);
     if (file == NULL) {
