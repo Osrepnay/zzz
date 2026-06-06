@@ -24,6 +24,8 @@
 
 struct daemon_opts daemon_opts = {
     .replace_clipboard_on_clear = true,
+    .max_item_bytes = LLONG_MAX,
+    .max_entries = LLONG_MAX,
 };
 
 struct daemon_device_state {

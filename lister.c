@@ -1,3 +1,4 @@
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,7 +10,7 @@
 
 struct lister_opts lister_opts = {
     .print_label = true,
-    .max_preview = SIZE_MAX,
+    .max_preview = LLONG_MAX,
 };
 
 static bool fprint_textual(FILE *f, const char *data, size_t len) {
