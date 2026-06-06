@@ -320,7 +320,7 @@ char *read_mime(FILE *file) {
     }
 }
 
-bool read_data(FILE *file, char **data, size_t *len) {
+bool file_remaining_bytes(FILE *file, size_t *bytes) {
     long starting_offset = ftell(file);
     if (starting_offset == -1) {
         return false;
@@ -336,10 +336,7 @@ bool read_data(FILE *file, char **data, size_t *len) {
     if (fseek(file, starting_offset, SEEK_SET) != 0) {
         return false;
     }
-    long to_read = ending_offset - starting_offset;
-    *data = malloc(to_read);
-    fread(*data, 1, to_read, file);
-    *len = to_read;
+    *bytes = ending_offset - starting_offset;
     return true;
 }
 
@@ -353,9 +350,10 @@ bool read_item(const char *filename, struct clip_item *res) {
     
     char *mime = read_mime(file);
     if (mime == NULL) goto cleanup;
-    char *data;
     size_t len;
-    if (!read_data(file, &data, &len)) goto cleanup;
+    if (!file_remaining_bytes(file, &len)) goto cleanup;
+    char *data = malloc(len);
+    if (fread(data, 1, len, file) != len) goto cleanup;
     *res = (struct clip_item) {
         .mime = mime,
         .data = data,

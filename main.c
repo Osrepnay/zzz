@@ -35,6 +35,12 @@ int main(int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
             }
             daemon_opts.max_item_bytes = keyvalue->value.integer;
+        } else if (strcmp(keyvalue->key, "max-preview") == 0) {
+            if (keyvalue->value.type != KV_VALUE_INTEGER) {
+                fputs("improper type for max-preview in config: expected integer\n", stderr);
+                exit(EXIT_FAILURE);
+            }
+            lister_opts.max_preview = keyvalue->value.integer;
         } else if (strcmp(keyvalue->key, "replace-clipboard-on-clear") == 0) {
             if (keyvalue->value.type != KV_VALUE_BOOLEAN) {
                 fputs("improper type for replace-clipboard-on-clear in config: expected boolean\n", stderr);

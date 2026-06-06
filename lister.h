@@ -3,6 +3,7 @@
 
 struct lister_opts {
     bool print_label;
+    long long max_preview;
 };
 
 extern struct lister_opts lister_opts;

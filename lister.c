@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,6 +9,7 @@
 
 struct lister_opts lister_opts = {
     .print_label = true,
+    .max_preview = SIZE_MAX,
 };
 
 static bool fprint_textual(FILE *f, const char *data, size_t len) {
@@ -32,8 +34,8 @@ static bool fprint_binary(FILE *f, char *mime, size_t len) {
 bool fprint_line(FILE *f, const struct zzz_list *filenames) {
     // defaults to utf8 text, uses the first
     // one listed as a fallback
-    char *chosen_filename;
-    char *chosen_mime;
+    char *chosen_filename = NULL;
+    char *chosen_mime = NULL;
     char *data = NULL;
     size_t len;
     bool is_text = false;
@@ -56,17 +58,25 @@ bool fprint_line(FILE *f, const struct zzz_list *filenames) {
             if (data != NULL) {
                 old_data = data;
             }
-            if (read_data(file, &data, &len)) {
-                if (old_data != NULL) {
-                    free(old_data);
-                    free(chosen_mime);
+            if (file_remaining_bytes(file, &len)) {
+                if (lister_opts.max_preview < 0) {
+                    len = 0;
+                } else if (len > (size_t)lister_opts.max_preview) {
+                    len = lister_opts.max_preview;
                 }
-                is_text = true;
-                chosen_filename = filename_node->value;
-                chosen_mime = mime;
+                data = malloc(len);
+                if (fread(data, 1, len, file) == len) {
+                    if (old_data != NULL) {
+                        free(old_data);
+                        free(chosen_mime);
+                    }
+                    is_text = true;
+                    chosen_filename = filename_node->value;
+                    chosen_mime = mime;
+                }
             }
-        } else if (data == NULL) {
-            if (read_data(file, &data, &len)) {
+        } else if (chosen_filename == NULL) {
+            if (file_remaining_bytes(file, &len)) {
                 chosen_filename = filename_node->value;
                 chosen_mime = mime;
             }
@@ -85,7 +95,7 @@ bool fprint_line(FILE *f, const struct zzz_list *filenames) {
     bool success;
     if (is_text) {
         success = fprint_textual(f, data, len);
-    } else if (chosen_mime != NULL) {
+    } else if (chosen_filename != NULL) {
         success = fprint_binary(f, chosen_mime, len);
     } else {
         success = false;

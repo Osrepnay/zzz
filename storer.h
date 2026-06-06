@@ -24,7 +24,7 @@ bool write_items(const struct zzz_list *clip_items);
 bool trim_items(long long max_entries_longlong);
 FILE *access_file(const char *filename);
 char *read_mime(FILE *file);
-bool read_data(FILE *file, char **data, size_t *len);
+bool file_remaining_bytes(FILE *file, size_t *bytes);
 bool read_item(const char *filename, struct clip_item *res);
 void free_clip_item_void(void *clip_item_void);
 
