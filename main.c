@@ -35,6 +35,12 @@ int main(int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
             }
             daemon_opts.max_item_bytes = keyvalue->value.integer;
+        } else if (strcmp(keyvalue->key, "replace-clipboard-on-clear") == 0) {
+            if (keyvalue->value.type != KV_VALUE_BOOLEAN) {
+                fputs("improper type for replace-clipboard-on-clear in config: expected boolean\n", stderr);
+                exit(EXIT_FAILURE);
+            }
+            daemon_opts.replace_clipboard_on_clear = keyvalue->value.boolean;
         } else {
             fprintf(stderr, "unknown config value: %s\n", keyvalue->key);
             exit(EXIT_FAILURE);
@@ -55,9 +61,7 @@ int main(int argc, char *argv[]) {
 
     char *help =
         "usage: zzz [options]\n"
-        "  -h  print this help message\n"
-        "  -n  don't replace selection when selection is cleared,\n"
-        "      such as when the source application exits\n";
+        "  -h  print this help message\n";
     if (argc >= 2 && strcmp(argv[1], "get") == 0) {
         argc--;
         argv++;
@@ -102,7 +106,7 @@ int main(int argc, char *argv[]) {
         registry_state.dcm_callback = daemon_dcm_callback;
         registry_state.callback_data = NULL;
         int c;
-        while ((c = getopt(argc, argv, "hn")) != -1) {
+        while ((c = getopt(argc, argv, "h")) != -1) {
             switch (c) {
             case '?':
                 fputs(help, stderr);
@@ -110,9 +114,6 @@ int main(int argc, char *argv[]) {
             case 'h':
                 fputs(help, stdout);
                 return EXIT_SUCCESS;
-            case 'n':
-                daemon_opts.replace = false;
-                break;
             default:
                 break;
             }

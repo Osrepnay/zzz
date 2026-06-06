@@ -61,6 +61,8 @@ static void free_keyvalue(void *keyvalue_void) {
     struct keyvalue *keyvalue = keyvalue_void;
     free(keyvalue->key);
     switch (keyvalue->value.type) {
+    case KV_VALUE_BOOLEAN:
+        break;
     case KV_VALUE_INTEGER:
         break;
     case KV_VALUE_MIME_PREF:
@@ -93,11 +95,24 @@ static void advance(struct parse_state *state) {
     state->idx++;
 }
 
-static bool parse_char(struct parse_state *state, char c) {
+static bool try_char(struct parse_state *state, char c) {
     if (peek_char(state) == c) {
         advance(state);
         return true;
     } else {
+        return false;
+    }
+}
+
+// resets on failure
+static bool try_string(struct parse_state *state, char *str) {
+    struct parse_state orig_state = *state;
+    size_t i = 0;
+    while (str[i] != '\0' && try_char(state, str[i++]));
+    if (str[i] == '\0') {
+        return true;
+    } else {
+        *state = orig_state;
         return false;
     }
 }
@@ -190,7 +205,7 @@ static bool parse_paren_pref(struct parse_state *state, enum parent_type this_ty
         return false;
     }
 
-    if (!parse_char(state, paren_chars[0])) return false;
+    if (!try_char(state, paren_chars[0])) return false;
     take_whitespace(state);
 
     *subprefs = zzz_list_empty;
@@ -203,7 +218,7 @@ static bool parse_paren_pref(struct parse_state *state, enum parent_type this_ty
         prev_idx = state->idx;
     }
 
-    if (prev_idx == state->idx && parse_char(state, paren_chars[1])) {
+    if (prev_idx == state->idx && try_char(state, paren_chars[1])) {
         take_whitespace(state);
         return true;
     } else {
@@ -242,10 +257,25 @@ static bool parse_mime_prefs(struct parse_state *state, enum parent_type parent_
     return false;
 }
 
+static bool parse_bool(struct parse_state *state, bool *ret) {
+    if (try_string(state, "true")) {
+        *ret = true;
+        take_whitespace(state);
+        return true;
+    }
+    if (try_string(state, "false")) {
+        *ret = false;
+        take_whitespace(state);
+        return true;
+    }
+    return false;
+}
+
 static bool parse_value(struct parse_state *state, struct kv_value *value) {
     TRY_ALTERNATIVE(state, parse_mime_prefs(state, PARENT_NONE, &value->mime_pref)
             && (value->type = KV_VALUE_MIME_PREF, true));
     TRY_ALTERNATIVE(state, parse_integer(state, &value->integer) && (value->type = KV_VALUE_INTEGER, true));
+    TRY_ALTERNATIVE(state, parse_bool(state, &value->boolean) && (value->type = KV_VALUE_BOOLEAN, true));
     return false;
 }
 
@@ -253,7 +283,7 @@ static bool parse_keyvalue(struct parse_state *state, struct keyvalue *keyvalue)
     char *key;
     if (!parse_key(state, &key)) return false;
     take_whitespace(state);
-    if (!parse_char(state, '=')) {
+    if (!try_char(state, '=')) {
         report_err_header(state);
         fprintf(stderr, "expected \"=\", got %s\n", CURR_CHAR_FMT(state));
         free(key);
@@ -265,7 +295,7 @@ static bool parse_keyvalue(struct parse_state *state, struct keyvalue *keyvalue)
     if (!parse_value(state, &value)) {
         if (prev_idx == state->idx) {
             report_err_header(state);
-            fprintf(stderr, "expected value (integer or mime preferences)\n");
+            fprintf(stderr, "no valid value for key-value pair\n");
         }
         free(key);
         return false;

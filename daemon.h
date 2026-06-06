@@ -2,7 +2,7 @@
 #include "registry.h"
 
 struct daemon_opts {
-    bool replace;
+    bool replace_clipboard_on_clear;
     long long max_entries;
     long long max_item_bytes;
     struct mime_pref pref;

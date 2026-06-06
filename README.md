@@ -31,6 +31,7 @@ Configuration is required at `$XDG_CONFIG_HOME/zzz_mimes`. Each line in `zzz_mim
 - cli getting/deleting
 - fix cli parsing and help
 - fallback if entry too large
+- human readable sizes
 
 ## warning
 

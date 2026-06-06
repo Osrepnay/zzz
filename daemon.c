@@ -23,7 +23,7 @@
 #include "zzz_list.h"
 
 struct daemon_opts daemon_opts = {
-    .replace = true,
+    .replace_clipboard_on_clear = true,
 };
 
 struct daemon_device_state {
@@ -351,7 +351,7 @@ static void device_selection(void *data, struct zwlr_data_control_device_v1 *dev
     // not a clipboard clear
     if (offer != NULL) {
         store_selection(state, offer);
-    } else if (daemon_opts.replace && state->saved_items.len > 0) {
+    } else if (daemon_opts.replace_clipboard_on_clear && state->saved_items.len > 0) {
         replace_selection(state, device);
     }
 }

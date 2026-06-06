@@ -29,12 +29,15 @@ struct mime_pref {
 };
 
 enum kv_value_type {
-    KV_VALUE_INTEGER, KV_VALUE_MIME_PREF
+    KV_VALUE_BOOLEAN,
+    KV_VALUE_INTEGER,
+    KV_VALUE_MIME_PREF,
 };
 
 struct kv_value {
     enum kv_value_type type;
     union {
+        bool boolean;
         long long integer;
         struct mime_pref mime_pref;
     };
