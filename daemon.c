@@ -166,24 +166,41 @@ static void read_fds(struct zzz_list *saved_items, struct zzz_list *mimes, int *
                     clip_items[i].data = realloc(clip_items[i].data, data_capacities[i] *= 2);
                 }
                 ssize_t bytes_read = read(pollfds[i].fd, clip_items[i].data + clip_items[i].len, chunk_size);
+                bool this_done = false;
+                bool do_blank = false;
                 // pipe closed
                 if (bytes_read == 0) {
+                    this_done = true;
+                } else if (bytes_read == -1) {
+                    if (errno != EAGAIN) {
+                        // unexpected error
+                        perror("read");
+                        this_done = true;
+                        do_blank = true;
+                    }
+                } else {
+                    clip_items[i].len += bytes_read;
+                    // ignore items too large
+                    if (daemon_opts.max_item_bytes < 0
+                            || clip_items[i].len > (size_t)daemon_opts.max_item_bytes) {
+                        this_done = true;
+                        do_blank = true;
+                    }
+                }
+                if (do_blank) {
+                    // we are allowed to free mimetype,
+                    // ownership got handed to this func
+                    free(clip_items[i].mime);
+                    free(clip_items[i].data);
+                    // blank bad clip items, ignore later
+                    clip_items[i] = (struct clip_item) { 0 };
+                }
+                if (this_done) {
+                    close(pollfds[i].fd);
                     pollfds[i].fd *= -1;
                     num_done++;
                     break;
                 }
-                if (bytes_read == -1) {
-                    if (errno != EAGAIN) {
-                        // unexpected error
-                        perror("read");
-                        pollfds[i].fd *= -1;
-                        num_done++;
-                        // blank bad clip items, ignore later
-                        clip_items[i] = (struct clip_item) { 0 };
-                    }
-                    break;
-                }
-                clip_items[i].len += bytes_read;
             }
         }
     }
@@ -194,10 +211,13 @@ static void read_fds(struct zzz_list *saved_items, struct zzz_list *mimes, int *
             struct clip_item *item = malloc(sizeof(*item));
             *item = clip_items[i];
             zzz_list_append(saved_items, item);
-        } else {
-            // we are allowed to free mimetype, ownership got handed to this func
-            free(clip_items[i].mime);
-            free(clip_items[i].data);
+        }
+        // catching any strays
+        // don't know if this is possible but it theoretically is if
+        // poll() decides to exit before all have been marked as done
+        // (or if it times out?)
+        if (pollfds[i].fd >= 0) {
+            close(pollfds[i].fd);
         }
     }
 

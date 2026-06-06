@@ -29,12 +29,12 @@ int main(int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
             }
             daemon_opts.max_entries = keyvalue->value.integer;
-        } else if (strcmp(keyvalue->key, "max-item-size") == 0) {
+        } else if (strcmp(keyvalue->key, "max-item-bytes") == 0) {
             if (keyvalue->value.type != KV_VALUE_INTEGER) {
-                fputs("improper type for max-item-size in config: expected integer\n", stderr);
+                fputs("improper type for max-item-bytes in config: expected integer\n", stderr);
                 exit(EXIT_FAILURE);
             }
-            daemon_opts.max_item_size = keyvalue->value.integer;
+            daemon_opts.max_item_bytes = keyvalue->value.integer;
         } else {
             fprintf(stderr, "unknown config value: %s\n", keyvalue->key);
             exit(EXIT_FAILURE);
