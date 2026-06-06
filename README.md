@@ -21,13 +21,14 @@ Configuration is required at `$XDG_CONFIG_HOME/zzz_mimes`. Each line in `zzz_mim
 ## todo
 
 - user provided mimetype selection script
-- history lister
 - better error handling/cleanup
 - support ext-data-control in addition to wlr-data-control
 - maximum copy size
 - maximum history length
 - switch to stb_ds
 - deduplicating
+- posix regex
+- stop reading index like 3 times
 
 ## warning
 

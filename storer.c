@@ -167,12 +167,12 @@ bool write_index(void) {
         }
         fputc('\n', tmp_index);
     }
-    fclose(tmp_index);
-    if (!fsync(tmp_index_fd)) {
+    if (fsync(tmp_index_fd) != 0) {
         free(tmp_path);
         return false;
     }
-    if (!rename(tmp_path, index_path)) {
+    fclose(tmp_index);
+    if (rename(tmp_path, index_path) != 0) {
         free(tmp_path);
         return false;
     }
@@ -187,6 +187,65 @@ void writer_init(void) {
         fputs("failed to read index, aborting\n", stderr);
         exit(EXIT_FAILURE);
     }
+}
+
+static char *path_from_label(char *label) {
+    char *path = malloc(strlen(write_dir) + 1 + strlen(label) + 1);
+    path[0] = '\0';
+    strcat(path, write_dir);
+    strcat(path, "/");
+    strcat(path, label);
+    return path;
+}
+
+bool trim_items(long long max_entries_longlong) {
+    size_t max_entries = max_entries_longlong;
+    if (max_entries_longlong < 0) {
+        max_entries = 0;
+    }
+
+    if (storer_index.len <= max_entries) return true;
+
+    // first node to be removed
+    struct zzz_list_node *drop_start = NULL;
+    size_t i = 0;
+    ZZZ_LIST_FOREACH(storer_index, index_node) {
+        if (i == max_entries) {
+            drop_start = index_node;
+            break;
+        }
+        i++;
+    }
+    // sublist of this + next entries to free later
+    struct zzz_list to_drop = (struct zzz_list) {
+        .len = storer_index.len - max_entries,
+        .head = drop_start,
+        .last = storer_index.last,
+    };
+    if (drop_start == storer_index.head) {
+        storer_index.head = NULL;
+        storer_index.last = NULL;
+    } else {
+        storer_index.last = drop_start->prev;
+        storer_index.last->next = NULL;
+        drop_start->prev = NULL;
+    }
+    storer_index.len = max_entries;
+
+    if (!write_index()) return false;
+
+    ZZZ_LIST_FOREACH(to_drop, drop_node) {
+        ZZZ_LIST_FOREACH(*(struct zzz_list *)drop_node->value, filename_node) {
+            char *path = path_from_label(filename_node->value);
+            if (remove(path) != 0) {
+                free(path);
+                return false;
+            }
+            free(path);
+        }
+    }
+    zzz_list_free(&to_drop, void_zzz_list_free);
+    return true;
 }
 
 bool write_items(const struct zzz_list *clip_items) {
@@ -204,17 +263,12 @@ bool write_items(const struct zzz_list *clip_items) {
         struct clip_item *item = curr_clip_item->value;
 
         char filename[FILENAME_CHARS + 1];
-        char *data_path;
         FILE *data_file;
         // loop to ensure no filename collisions (unlikely anyway)
         do {
             unsigned int filename_int = rand();
             snprintf(filename, FILENAME_CHARS + 1, "%0"STRINGIFY(FILENAME_CHARS)"x", filename_int);
-            data_path = malloc(strlen(write_dir) + 1 + strlen(filename) + 1);
-            data_path[0] = '\0';
-            strcat(data_path, write_dir);
-            strcat(data_path, "/");
-            strcat(data_path, filename);
+            char *data_path = path_from_label(filename);
             data_file = fopen(data_path, "wx");
             free(data_path);
         } while (data_file == NULL && errno == EEXIST);

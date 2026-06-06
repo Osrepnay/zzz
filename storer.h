@@ -21,6 +21,7 @@ void path_init(void);
 void writer_init(void);
 bool read_index(void);
 bool write_items(const struct zzz_list *clip_items);
+bool trim_items(long long max_entries_longlong);
 FILE *access_file(const char *filename);
 char *read_mime(FILE *file);
 bool read_data(FILE *file, char **data, size_t *len);

@@ -9,8 +9,8 @@ const struct zzz_list zzz_list_empty = {
 };
 
 struct zzz_list zzz_list_singleton(void *value) {
-    struct zzz_node *node = malloc(sizeof(*node));
-    *node = (struct zzz_node) {
+    struct zzz_list_node *node = malloc(sizeof(*node));
+    *node = (struct zzz_list_node) {
         .value = value,
         .prev = NULL,
         .next = NULL,
@@ -24,12 +24,12 @@ struct zzz_list zzz_list_singleton(void *value) {
 
 void zzz_list_free(struct zzz_list *list, void free_func(void *)) {
     // can't use foreach, we are freeing nodes on the way
-    struct zzz_node *node = list->head;
+    struct zzz_list_node *node = list->head;
     while (node != NULL) {
         if (free_func != NULL) {
             free_func(node->value);
         }
-        struct zzz_node *next = node->next;
+        struct zzz_list_node *next = node->next;
         free(node);
         node = next;
     }
@@ -37,8 +37,8 @@ void zzz_list_free(struct zzz_list *list, void free_func(void *)) {
 }
 
 void zzz_list_prepend(struct zzz_list *list, void *value) {
-    struct zzz_node *node = malloc(sizeof(*node));
-    *node = (struct zzz_node) {
+    struct zzz_list_node *node = malloc(sizeof(*node));
+    *node = (struct zzz_list_node) {
         .value = value,
         .next = list->head,
     };
@@ -52,8 +52,8 @@ void zzz_list_prepend(struct zzz_list *list, void *value) {
 }
 
 void zzz_list_append(struct zzz_list *list, void *value) {
-    struct zzz_node *node = malloc(sizeof(*node));
-    *node = (struct zzz_node) {
+    struct zzz_list_node *node = malloc(sizeof(*node));
+    *node = (struct zzz_list_node) {
         .value = value,
         .next = NULL,
     };
@@ -66,7 +66,7 @@ void zzz_list_append(struct zzz_list *list, void *value) {
     list->len++;
 }
 
-void zzz_list_remove_node(struct zzz_list *list, struct zzz_node *node) {
+void zzz_list_remove_node(struct zzz_list *list, struct zzz_list_node *node) {
     list->len--;
     if (list->head == node) {
         list->head = NULL;
@@ -75,7 +75,7 @@ void zzz_list_remove_node(struct zzz_list *list, struct zzz_node *node) {
         list->last = NULL;
     }
 
-    struct zzz_node *tmp_next = node->next;
+    struct zzz_list_node *tmp_next = node->next;
     if (tmp_next != NULL) {
         tmp_next->prev = node->prev;
     }
