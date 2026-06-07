@@ -23,8 +23,6 @@ Configuration is required at `$XDG_CONFIG_HOME/zzz_mimes`. Each line in `zzz_mim
 - user provided mimetype selection script
 - better error handling/cleanup
 - support ext-data-control in addition to wlr-data-control
-- maximum copy size
-- maximum history length
 - deduplicating
 - posix regex
 - stop reading index like 3 times

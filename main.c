@@ -14,44 +14,34 @@
 struct wl_display *display;
 
 int main(int argc, char *argv[]) {
-    struct zzz_list config = get_config();
-    ZZZ_LIST_FOREACH(config, config_node) {
-        struct keyvalue *keyvalue = config_node->value;
-        if (strcmp(keyvalue->key, "mime-pref") == 0) {
-            if (keyvalue->value.type != KV_VALUE_MIME_PREF) {
-                fputs("improper type for mime-pref in config: expected mime preferences\n", stderr);
-                exit(EXIT_FAILURE);
-            }
-            daemon_opts.pref = keyvalue->value.mime_pref;
-        } else if (strcmp(keyvalue->key, "max-entries") == 0) {
-            if (keyvalue->value.type != KV_VALUE_INTEGER) {
-                fputs("improper type for max-entries in config: expected integer\n", stderr);
-                exit(EXIT_FAILURE);
-            }
-            daemon_opts.max_entries = keyvalue->value.integer;
-        } else if (strcmp(keyvalue->key, "max-item-bytes") == 0) {
-            if (keyvalue->value.type != KV_VALUE_INTEGER) {
-                fputs("improper type for max-item-bytes in config: expected integer\n", stderr);
-                exit(EXIT_FAILURE);
-            }
-            daemon_opts.max_item_bytes = keyvalue->value.integer;
-        } else if (strcmp(keyvalue->key, "max-preview") == 0) {
-            if (keyvalue->value.type != KV_VALUE_INTEGER) {
-                fputs("improper type for max-preview in config: expected integer\n", stderr);
-                exit(EXIT_FAILURE);
-            }
-            lister_opts.max_preview = keyvalue->value.integer;
-        } else if (strcmp(keyvalue->key, "replace-clipboard-on-clear") == 0) {
-            if (keyvalue->value.type != KV_VALUE_BOOLEAN) {
-                fputs("improper type for replace-clipboard-on-clear in config: expected boolean\n", stderr);
-                exit(EXIT_FAILURE);
-            }
-            daemon_opts.replace_clipboard_on_clear = keyvalue->value.boolean;
-        } else {
-            fprintf(stderr, "unknown config value: %s\n", keyvalue->key);
-            exit(EXIT_FAILURE);
-        }
-    }
+    struct config_assign assignments[] = {
+        {
+            .name = "max-entries",
+            .expected_type = KV_VALUE_INTEGER,
+            .write_to = &daemon_opts.max_entries,
+        },
+        {
+            .name = "max-item-bytes",
+            .expected_type = KV_VALUE_INTEGER,
+            .write_to = &daemon_opts.max_item_bytes,
+        },
+        {
+            .name = "max-preview",
+            .expected_type = KV_VALUE_INTEGER,
+            .write_to = &lister_opts.max_preview,
+        },
+        {
+            .name = "replace-clipboard-on-clear",
+            .expected_type = KV_VALUE_BOOLEAN,
+            .write_to = &daemon_opts.replace_clipboard_on_clear,
+        },
+        {
+            .name = "mime-pref",
+            .expected_type = KV_VALUE_MIME_PREF,
+            .write_to = &daemon_opts.pref,
+        },
+    };
+    get_config(assignments, sizeof(assignments) / sizeof(*assignments));
 
     display = wl_display_connect(NULL);
     if (display == NULL) {

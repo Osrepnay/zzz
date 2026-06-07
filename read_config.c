@@ -35,7 +35,7 @@ static char *config_path(void) {
     }
 }
 
-struct zzz_list get_config(void) {
+static bool get_config_entries(struct zzz_list *config_entries) {
     char *path = config_path();
     int config_fd = open(path, O_RDWR);
     free(path);
@@ -61,10 +61,10 @@ struct zzz_list get_config(void) {
         struct zzz_list config;
         if (parse_config(config_text, &config)) {
             free(config_text);
-            return config;
+            *config_entries = config;
+            return true;
         } else {
-            fputs("couldn't read config file, aborting\n", stderr);
-            exit(EXIT_FAILURE);
+            return false;
         }
     } else {
         // couldn't access read config file, use default
@@ -74,7 +74,73 @@ struct zzz_list get_config(void) {
             "(UTF8_STRING text/plain;charset=utf-8 text/.*)]";
         struct zzz_list config;
         assert(parse_config(default_text, &config));
-        return config;
+        *config_entries = config;
+        return true;
+    }
+}
+
+static char *type_to_str(enum kv_value_type type) {
+    switch(type) {
+    case KV_VALUE_BOOLEAN:
+        return "boolean";
+    case KV_VALUE_INTEGER:
+        return "integer";
+    case KV_VALUE_MIME_PREF:
+        return "mime preferences";
+    }
+    // ...
+    exit(EXIT_FAILURE);
+}
+
+void get_config(struct config_assign *assignments, size_t assignments_len) {
+    struct zzz_list config;
+    if (!get_config_entries(&config)) {
+        fputs("couldn't read config file, aborting\n", stderr);
+        exit(EXIT_FAILURE);
+    }
+    bool type_failure = false;
+    for (size_t i = 0; i < assignments_len; i++) {
+        ZZZ_LIST_FOREACH(config, config_node) {
+            struct keyvalue *keyvalue = config_node->value;
+            if (strcmp(keyvalue->key, assignments[i].name) != 0) continue;
+
+            if (keyvalue->value.type != assignments[i].expected_type) {
+                type_failure = true;
+                fprintf(stderr, "improper type for %s in config: expected %s, got %s\n",
+                    keyvalue->key,
+                    type_to_str(assignments[i].expected_type),
+                    type_to_str(keyvalue->value.type));
+            } else {
+                switch (assignments[i].expected_type) {
+                case KV_VALUE_BOOLEAN:
+                    *(bool *)assignments[i].write_to = keyvalue->value.boolean;
+                    break;
+                case KV_VALUE_INTEGER:
+                    *(long long *)assignments[i].write_to = keyvalue->value.integer;
+                    break;
+                case KV_VALUE_MIME_PREF:
+                    *(struct mime_pref *)assignments[i].write_to = keyvalue->value.mime_pref;
+                    break;
+                }
+            }
+            free(keyvalue->key);
+            free(keyvalue);
+            // do not free value (only mime_pref allocates as of now),
+            // it's being used in write_to
+            ZZZ_LIST_FOREACH_REMOVE(config, config_node);
+            break;
+        }
+    }
+    bool had_strays = false;
+    ZZZ_LIST_FOREACH(config, config_node) {
+        had_strays = true;
+        struct keyvalue *keyvalue = config_node->value;
+        fprintf(stderr, "unknown config key: %s\n", keyvalue->key);
+        free(keyvalue->key);
+    }
+    zzz_list_free(&config, free);
+    if (type_failure || had_strays) {
+        exit(EXIT_FAILURE);
     }
 }
 
