@@ -9,11 +9,13 @@
 #include "getter.h"
 #include "lister.h"
 #include "read_config.h"
+#include "selector.h"
 #include "storer.h"
 
 struct wl_display *display;
 
 int main(int argc, char *argv[]) {
+    path_init();
     struct config_assign assignments[] = {
         {
             .name = "max-entries",
@@ -93,13 +95,48 @@ int main(int argc, char *argv[]) {
         registry_state.dcm_callback = getter_dcm_callback;
         registry_state.callback_data = NULL;
     } else if (argc >= 2 && strcmp(argv[1], "list") == 0) {
-        if (fprint_listing(stdout)) {
+        if (fprint_listing(stdout, true)) {
             exit(EXIT_SUCCESS);
         } else {
             exit(EXIT_FAILURE);
         }
     } else if (argc >= 2 && strcmp(argv[1], "delete") == 0) {
-
+        if (!read_index()) {
+            fputs("failed to read index file", stderr);
+            exit(EXIT_FAILURE);
+        }
+        argc -= 2;
+        argv += 2;
+        // jesus....
+        char del_label[1];
+        char *del_label_ptr = del_label;
+        char **del_labels = &del_label_ptr;
+        size_t del_labels_len;
+        if (argc >= 1 && strcmp(argv[0], "--") == 0) {
+            argc--;
+            argv++;
+            struct zzz_list labels;
+            if (!select_labels_with_command(argv, argc, &labels)) {
+                exit(EXIT_FAILURE);
+            }
+            char *first = (char *)zzz_list_by_idx(&labels, 0);
+            *del_labels = first;
+            del_labels_len = 1;
+        } else {
+            del_labels = argv;
+            del_labels_len = argc;
+        }
+        bool fail = true;
+        for (size_t i = 0; i < del_labels_len; i++) {
+            if (!delete_items(del_labels[i])) {
+                fprintf(stderr, "failed to delete label %s\n", del_labels[i]);
+            }
+        }
+        if (fail) {
+            exit(EXIT_SUCCESS);
+        } else {
+            exit(EXIT_FAILURE);
+        }
     } else {
         registry_state.dcm_callback = daemon_dcm_callback;
         registry_state.callback_data = NULL;

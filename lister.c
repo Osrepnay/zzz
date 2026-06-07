@@ -9,7 +9,6 @@
 #include "zzz_list.h"
 
 struct lister_opts lister_opts = {
-    .print_label = true,
     .max_preview = LLONG_MAX,
 };
 
@@ -32,7 +31,7 @@ static bool fprint_binary(FILE *f, char *mime, size_t len) {
     return fprintf(f, "%s, %zu bytes\n", mime, len) >= 0;
 }
 
-bool fprint_line(FILE *f, const struct zzz_list *filenames) {
+bool fprint_line(FILE *f, const struct zzz_list *filenames, bool print_label) {
     // defaults to utf8 text, uses the first
     // one listed as a fallback
     char *chosen_filename = NULL;
@@ -90,8 +89,8 @@ bool fprint_line(FILE *f, const struct zzz_list *filenames) {
             break;
         }
     }
-    if (lister_opts.print_label) {
-        fprintf(f, "%s\t", chosen_filename);
+    if (print_label) {
+        fprintf(f, "%s\t", (char *)zzz_list_by_idx(filenames, 0));
     }
     bool success;
     if (is_text) {
@@ -106,14 +105,14 @@ bool fprint_line(FILE *f, const struct zzz_list *filenames) {
     return success;
 }
 
-bool fprint_listing(FILE *f) {
+bool fprint_listing(FILE *f, bool print_label) {
     path_init();
     if (!read_index()) {
         fputs("failed to read index file", stderr);
         return false;
     }
     ZZZ_LIST_FOREACH(storer_index, index_node) {
-        if (!fprint_line(f, index_node->value)) {
+        if (!fprint_line(f, index_node->value, print_label)) {
             return false;
         }
     }

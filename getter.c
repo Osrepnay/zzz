@@ -85,7 +85,6 @@ void getter_dcm_callback(void *data, struct wl_objs *wl_objs) {
 
     switch (getter_opts.mode) {
     case GETTER_MODE_COMMAND:
-        lister_opts.print_label = false;
         handle_command(wl_objs);
         break;
     case GETTER_MODE_LABELS:

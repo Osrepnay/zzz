@@ -290,8 +290,29 @@ bool write_items(const struct zzz_list *clip_items) {
     return write_index();
 }
 
-FILE *access_file(const char *filename) {
-    char *path = path_from_label(filename);
+// deletes a set of items using the label of the first
+bool delete_items(const char *label) {
+    ZZZ_LIST_FOREACH(storer_index, index_node) {
+        struct zzz_list *items = index_node->value;
+        if (items->len <= 0) continue;
+        char *first = zzz_list_by_idx(items, 0);
+        if (strcmp(first, label) != 0) continue;
+        zzz_list_remove_node(&storer_index, index_node);
+        bool success = write_index();
+        ZZZ_LIST_FOREACH(*items, items_node) {
+            char *path = path_from_label(items_node->value);
+            success &= remove(path) == 0;
+            free(path);
+        }
+        zzz_list_free(items, free);
+        free(items);
+        return success;
+    }
+    return false;
+}
+
+FILE *access_file(const char *label) {
+    char *path = path_from_label(label);
     FILE *file = fopen(path, "r");
     free(path);
     if (file == NULL) {

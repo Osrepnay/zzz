@@ -25,12 +25,14 @@ Configuration is required at `$XDG_CONFIG_HOME/zzz_mimes`. Each line in `zzz_mim
 - support ext-data-control in addition to wlr-data-control
 - deduplicating
 - posix regex
-- stop reading index like 3 times
+- clean up init situation
 - cli getting/deleting
 - fix cli parsing and help
 - fallback if entry too large
 - human readable sizes
 - getting whole sets instead of single mime
+- multi-select support
+- make deleting play nice with daemon
 
 ## warning
 

@@ -63,7 +63,7 @@ bool select_labels_with_command(char *const *argv, int argc, struct zzz_list *la
         close(stdout_fds[1]);
         FILE *file = fdopen(stdin_fds[1], "w");
         signal(SIGPIPE, SIG_IGN);
-        if (!fprint_listing(file)) {
+        if (!fprint_listing(file, false)) {
             failed = true;
         }
         signal(SIGPIPE, SIG_DFL);
