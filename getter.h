@@ -8,8 +8,8 @@ struct getter_opts {
     union {
         struct zzz_list labels;
         struct {
-            char **command_parts;
-            size_t command_len;
+            char **parts;
+            size_t len;
         } command;
     } args;
 };

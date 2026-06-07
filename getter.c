@@ -1,7 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <fcntl.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,6 +10,7 @@
 #include "getter.h"
 #include "read_config.h"
 #include "registry.h"
+#include "selector.h"
 #include "storer.h"
 #include "wlr-data-control-protocol.h"
 #include "zzz_list.h"
@@ -68,105 +68,14 @@ static void handle_labels(struct wl_objs *wl_objs, const struct zzz_list *labels
     zwlr_data_control_device_v1_set_selection(wl_objs->device, source);
 }
 
-static bool parse_long(char *str, long *res) {
-    char *str_end = NULL;
-    long result = strtol(str, &str_end, 10);
-    if (*str_end == '\0' || str_end == str) {
-        return false;
-    }
-    *res = result;
-    return true;
-}
-
-static void handle_command(struct wl_objs *wl_objs) {
-    int stdin_fds[2];
-    int stdout_fds[2];
-    if (pipe(stdin_fds) == -1 || pipe(stdout_fds) == -1) {
-        perror("pipe");
-        exit(EXIT_FAILURE);
-    }
-    pid_t pid = fork();
-    bool failed = false;
-    switch (pid) {
-    case -1:
-        perror("fork");
-        failed = true;
-        close(stdin_fds[0]);
-        close(stdin_fds[1]);
-        close(stdout_fds[0]);
-        close(stdout_fds[1]);
-        break;
-    case 0:
-        close(stdin_fds[1]);
-        close(stdout_fds[0]);
-        if (dup2(stdin_fds[0], STDIN_FILENO) == -1
-                || dup2(stdout_fds[1], STDOUT_FILENO) == -1) {
-            perror("dup");
-            failed = true;
-        }
-        close(stdin_fds[0]);
-        close(stdout_fds[1]);
-        if (failed) break;
-
-        char **argv = malloc(sizeof(*argv) * (getter_opts.args.command.command_len + 1));
-        memcpy(argv, getter_opts.args.command.command_parts,
-               sizeof(*argv) * getter_opts.args.command.command_len);
-        argv[getter_opts.args.command.command_len] = NULL;
-        execvp(argv[0], argv);
-        perror("exec");
-        failed = true;
-        break;
-    default:;
-        close(stdin_fds[0]);
-        close(stdout_fds[1]);
-        FILE *file = fdopen(stdin_fds[1], "w");
-        signal(SIGPIPE, SIG_IGN);
-        if (!fprint_listing(file)) {
-            failed = true;
-        }
-        signal(SIGPIPE, SIG_DFL);
-        fclose(file);
-        if (failed) {
-            fputs("failed to send data to selector\n", stderr);
-            close(stdout_fds[0]);
-            break;
-        }
-        char numbuf[64];
-        size_t numbuf_len = 0;
-        ssize_t read_ct;
-        while ((read_ct = read(stdout_fds[0], numbuf, 64)) > 0) {
-            numbuf_len += read_ct;
-        }
-        close(stdout_fds[0]);
-        if (read_ct < 0) {
-            perror("read");
-            failed = true;
-            break;
-        }
-        numbuf[numbuf_len] = '\0';
-
-        if (numbuf_len == 0) {
-            // it's not reeeaaally an error so just exit normally
-            fputs("nothing selected\n", stderr);
-            exit(EXIT_SUCCESS);
-        }
-        long idx;
-        if (!parse_long(numbuf, &idx)) {
-            fputs("failed when reading from selector program, is it configured to print the index?\n", stderr);
-            failed = true;
-            break;
-        }
-        struct zzz_list *labels = zzz_list_by_idx(&storer_index, idx);
-        if (labels != NULL) {
-            handle_labels(wl_objs, labels);
-        } else {
-            fprintf(stderr, "invalid index provided from selector: %ld\n", idx);
-        }
-        break;
-    }
-    if (failed) {
-        exit(EXIT_FAILURE);
-    }
+static void handle_command(struct wl_objs *wl_objs)  {
+    struct zzz_list labels;
+    if (!select_labels_with_command(
+        getter_opts.args.command.parts,
+        getter_opts.args.command.len,
+        &labels
+    )) exit(EXIT_FAILURE);
+    handle_labels(wl_objs, &labels);
 }
 
 void getter_dcm_callback(void *data, struct wl_objs *wl_objs) {

@@ -30,6 +30,7 @@ Configuration is required at `$XDG_CONFIG_HOME/zzz_mimes`. Each line in `zzz_mim
 - fix cli parsing and help
 - fallback if entry too large
 - human readable sizes
+- getting whole sets instead of single mime
 
 ## warning
 

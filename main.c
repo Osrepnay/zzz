@@ -80,8 +80,8 @@ int main(int argc, char *argv[]) {
             getter_opts.mode = GETTER_MODE_COMMAND;
             argc--;
             argv++;
-            getter_opts.args.command.command_parts = argv;
-            getter_opts.args.command.command_len = argc;
+            getter_opts.args.command.parts = argv;
+            getter_opts.args.command.len = argc;
         } else {
             getter_opts.mode = GETTER_MODE_LABELS;
             struct zzz_list list = zzz_list_empty;
@@ -98,6 +98,8 @@ int main(int argc, char *argv[]) {
         } else {
             exit(EXIT_FAILURE);
         }
+    } else if (argc >= 2 && strcmp(argv[1], "delete") == 0) {
+
     } else {
         registry_state.dcm_callback = daemon_dcm_callback;
         registry_state.callback_data = NULL;
