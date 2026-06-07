@@ -71,18 +71,17 @@ void zzz_list_append(struct zzz_list *list, void *value) {
 void zzz_list_remove_node(struct zzz_list *list, struct zzz_list_node *node) {
     list->len--;
     if (list->head == node) {
-        list->head = NULL;
+        list->head = node->next;
     }
     if (list->last == node) {
-        list->last = NULL;
+        list->last = node->prev;
     }
 
-    struct zzz_list_node *tmp_next = node->next;
-    if (tmp_next != NULL) {
-        tmp_next->prev = node->prev;
+    if (node->next != NULL) {
+        node->next->prev = node->prev;
     }
     if (node->prev != NULL) {
-        node->prev->next = tmp_next;
+        node->prev->next = node->next;
     }
     free(node);
 }
