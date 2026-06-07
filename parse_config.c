@@ -123,11 +123,21 @@ static bool take_whitespace(struct parse_state *state) {
     bool took = false;
     // whitespace is not comprehensive but in what serious scenario
     // are you gonna have anything else in your config file
-    char c;
-    while (!is_eof(state) && strchr(whitespace, (c = peek_char(state))) != NULL) {
-        took = true;
-        advance(state);
-    };
+    while (!is_eof(state)) {
+        char c = peek_char(state);
+        if (strchr(whitespace, c) != NULL) {
+            took = true;
+            advance(state);
+        } else if (c == '#') {
+            took = true;
+            advance(state);
+            while (!is_eof(state) && strchr("\r\n", peek_char(state)) == NULL) {
+                advance(state);
+            }
+        } else {
+            break;
+        }
+    }
     return took;
 }
 
