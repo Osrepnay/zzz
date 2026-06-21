@@ -1,5 +1,6 @@
 #include <stdlib.h>
 
+#include "xmalloc.h"
 #include "zzz_list.h"
 
 const struct zzz_list zzz_list_empty = {
@@ -9,7 +10,7 @@ const struct zzz_list zzz_list_empty = {
 };
 
 struct zzz_list zzz_list_singleton(void *value) {
-    struct zzz_list_node *node = malloc(sizeof(*node));
+    struct zzz_list_node *node = xmalloc(sizeof(*node));
     *node = (struct zzz_list_node) {
         .value = value,
         .prev = NULL,
@@ -37,7 +38,7 @@ void zzz_list_free(struct zzz_list *list, void free_func(void *)) {
 }
 
 void zzz_list_prepend(struct zzz_list *list, void *value) {
-    struct zzz_list_node *node = malloc(sizeof(*node));
+    struct zzz_list_node *node = xmalloc(sizeof(*node));
     *node = (struct zzz_list_node) {
         .value = value,
         .prev = NULL,
@@ -53,7 +54,7 @@ void zzz_list_prepend(struct zzz_list *list, void *value) {
 }
 
 void zzz_list_append(struct zzz_list *list, void *value) {
-    struct zzz_list_node *node = malloc(sizeof(*node));
+    struct zzz_list_node *node = xmalloc(sizeof(*node));
     *node = (struct zzz_list_node) {
         .value = value,
         .prev = list->last,
@@ -86,10 +87,10 @@ void zzz_list_remove_node(struct zzz_list *list, struct zzz_list_node *node) {
     free(node);
 }
 
-// only copies structure, pointers are not copied
-struct zzz_list zzz_list_copy(const struct zzz_list *list) {
+// only copies structure, elements' data is not copied
+struct zzz_list zzz_list_copy(const struct zzz_list *orig_list) {
     struct zzz_list copy = zzz_list_empty;
-    ZZZ_LIST_FOREACH(*list, node) {
+    ZZZ_LIST_FOREACH(*orig_list, node) {
         zzz_list_append(&copy, node->value);
     }
     return copy;

@@ -4,7 +4,10 @@
 #include <string.h>
 
 #include "parse_config.h"
+#include "xmalloc.h"
 
+// if the function exits without consuming, ignore
+// if the function exits after consuming, bail
 #define TRY_ALTERNATIVE(state, func) \
     { \
         size_t TRY_ALTERNATIVE_starting_idx = state->idx; \
@@ -14,8 +17,9 @@
             return false; \
         } \
     }
-        
+// char-to-string except if the char is EOF it returns "EOF"
 #define CURR_CHAR_FMT(state) (is_eof(state) ? "EOF" : (char[4]) {'"', peek_char(state), '"', '\0'})
+// generates a string parser where all characters satisfy a condition
 #define GEN_STR_PARSE(name, condition) \
     static bool name(struct parse_state *state, char **str) { \
         size_t string_len = 0; \
@@ -28,7 +32,7 @@
         if (string_len == 0) { \
             return false; \
         } else { \
-            *str = malloc(string_len + 1); \
+            *str = xmalloc(string_len + 1); \
             memcpy(*str, state->text + state->idx - string_len, string_len); \
             (*str)[string_len] = '\0'; \
             take_whitespace(state); \
@@ -160,8 +164,13 @@ static bool parse_mime_regex(struct parse_state *state, struct regex_with_match_
     bool success = compiled_regex != NULL;
     if (success) {
         pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(compiled_regex, NULL);
-        regex->match_data = match_data;
-        regex->code = compiled_regex;
+        if (match_data == NULL) {
+            success = false;
+            pcre2_code_free(compiled_regex);
+        } else {
+            regex->match_data = match_data;
+            regex->code = compiled_regex;
+        }
     } else {
         char pcre2_err_buf[256];
         pcre2_get_error_message(err_code, (PCRE2_UCHAR *)pcre2_err_buf, 256);
@@ -171,10 +180,6 @@ static bool parse_mime_regex(struct parse_state *state, struct regex_with_match_
     free(str);
     return success;
 }
-
-enum parent_type {
-    PARENT_ALL, PARENT_FIRST, PARENT_NONE
-};
 
 GEN_STR_PARSE(parse_key, strchr("=", peek_char(state)) == NULL)
 
@@ -188,7 +193,6 @@ static bool parse_integer(struct parse_state *state, long long *integer) {
     char *endptr;
     long long ret = strtoll(str, &endptr, 10);
     bool success = *endptr == '\0';
-    // valid
     if (success) {
         *integer = ret;
     } else {
@@ -198,6 +202,10 @@ static bool parse_integer(struct parse_state *state, long long *integer) {
     free(str);
     return success;
 }
+
+enum parent_type {
+    PARENT_ALL, PARENT_FIRST, PARENT_NONE
+};
 
 static bool parse_mime_prefs(struct parse_state *, enum parent_type , struct mime_pref *);
 
@@ -222,9 +230,10 @@ static bool parse_paren_pref(struct parse_state *state, enum parent_type this_ty
     struct mime_pref curr_subpref;
     size_t prev_idx = state->idx;
     while (parse_mime_prefs(state, this_type, &curr_subpref)) {
-        struct mime_pref *allocated = malloc(sizeof(*allocated));
+        struct mime_pref *allocated = xmalloc(sizeof(*allocated));
         *allocated = curr_subpref;
         zzz_list_append(subprefs, allocated);
+
         prev_idx = state->idx;
     }
 
@@ -232,6 +241,7 @@ static bool parse_paren_pref(struct parse_state *state, enum parent_type this_ty
         take_whitespace(state);
         return true;
     } else {
+        // missing closing paren
         if (prev_idx == state->idx) {
             report_err_header(state);
             fprintf(stderr, "expected \"%c\", got %s\n", paren_chars[1], CURR_CHAR_FMT(state));
@@ -315,7 +325,7 @@ static bool parse_keyvalue(struct parse_state *state, struct keyvalue *keyvalue)
     return true;
 }
 
-bool parse_config(char *text, struct zzz_list *ret_keyvalues) {
+bool parse_config(struct zzz_list *keyvalues, const char *text) {
     struct parse_state state = (struct parse_state) {
         .text = text,
         .text_len = strlen(text),
@@ -324,27 +334,27 @@ bool parse_config(char *text, struct zzz_list *ret_keyvalues) {
         .column = 0,
     };
     take_whitespace(&state);
-    struct zzz_list keyvalues = zzz_list_empty;
-    struct keyvalue keyvalue;
+    struct zzz_list kvs = zzz_list_empty;
+    struct keyvalue kv;
     size_t prev_idx = state.idx;
-    while (parse_keyvalue(&state, &keyvalue)) {
+    while (parse_keyvalue(&state, &kv)) {
         struct keyvalue *allocated = malloc(sizeof(*allocated));
-        *allocated = keyvalue;
-        zzz_list_append(&keyvalues, allocated);
+        *allocated = kv;
+        zzz_list_append(&kvs, allocated);
         prev_idx = state.idx;
     }
     take_whitespace(&state);
     // partial read w/ parse_keyvalue returning false (loop exit)
     // means there was an error
     if (is_eof(&state) && prev_idx == state.idx) {
-        *ret_keyvalues = keyvalues;
+        *keyvalues = kvs;
         return true;
     } else {
         if (prev_idx == state.idx) {
             report_err_header(&state);
             fputs("expected key\n", stderr);
         }
-        zzz_list_free(&keyvalues, free_keyvalue);
+        zzz_list_free(&kvs, free_keyvalue);
         return false;
     }
 }

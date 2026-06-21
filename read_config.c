@@ -5,10 +5,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <unistd.h>
 
 #include "read_config.h"
+#include "xmalloc.h"
 
 static char *config_path(void) {
     char *xdg_config_home = getenv("XDG_CONFIG_HOME");
@@ -20,14 +20,14 @@ static char *config_path(void) {
             exit(EXIT_FAILURE);
         }
         char *config_dirname = "/.config";
-        char *final = malloc(strlen(home) + strlen(config_dirname) + strlen(filename) + 1);
+        char *final = xmalloc(strlen(home) + strlen(config_dirname) + strlen(filename) + 1);
         final[0] = '\0';
         strcat(final, home);
         strcat(final, config_dirname);
         strcat(final, filename);
         return final;
     } else {
-        char *final = malloc(strlen(xdg_config_home) + strlen(filename) + 1);
+        char *final = xmalloc(strlen(xdg_config_home) + strlen(filename) + 1);
         final[0] = '\0';
         strcat(final, xdg_config_home);
         strcat(final, filename);
@@ -37,35 +37,33 @@ static char *config_path(void) {
 
 static bool get_config_entries(struct zzz_list *config_entries) {
     char *path = config_path();
-    int config_fd = open(path, O_RDWR);
+    if (path == NULL) return false;
+    FILE *config_file = fopen(path, "r");
     free(path);
 
-    if (config_fd >= 0) {
-        size_t chunk_size = 1;
-        size_t config_text_cap = chunk_size + 1;
-        size_t config_text_len = 0;
-        char *config_text = malloc(config_text_cap);
-        while (true) {
-            if (config_text_len + chunk_size + 1 > config_text_cap) {
-                config_text = realloc(config_text, config_text_cap *= 2);
-            }
-            ssize_t bytes_read = read(config_fd, config_text + config_text_len, chunk_size);
-            config_text_len += bytes_read;
-            if (bytes_read != (ssize_t)chunk_size) {
-                break;
-            }
-        }
-        close(config_fd);
-        config_text[config_text_len] = '\0';
+    if (config_file != NULL) {
+        bool success = false;
+        char *config_text = NULL;
+
+        if (fseek(config_file, 0, SEEK_END) != 0) goto cleanup;
+        long ending_offset = ftell(config_file);
+        if (ending_offset == -1) goto cleanup;
+        if (fseek(config_file, 0, SEEK_SET) != 0) goto cleanup;
+
+        size_t file_len = (size_t)ending_offset;
+        config_text = xmalloc(file_len + 1);
+        if (fread(config_text, 1, file_len, config_file) != file_len) goto cleanup;
+        config_text[file_len] = '\0';
 
         struct zzz_list config;
-        if (parse_config(config_text, &config)) {
-            free(config_text);
+        if (parse_config(&config, config_text)) {
             *config_entries = config;
-            return true;
-        } else {
-            return false;
-        }
+            success = true;
+        } else goto cleanup;
+cleanup:
+        fclose(config_file);
+        free(config_text);
+        return success;
     } else {
         // couldn't access read config file, use default
         // TODO use #embed or something
@@ -73,7 +71,8 @@ static bool get_config_entries(struct zzz_list *config_entries) {
             "mime-pref=[(image/png image/jpeg image/.*) "
             "(UTF8_STRING text/plain;charset=utf-8 text/.*)]";
         struct zzz_list config;
-        assert(parse_config(default_text, &config));
+        bool parse_result = parse_config(&config, default_text);
+        assert(parse_result);
         *config_entries = config;
         return true;
     }
@@ -87,9 +86,9 @@ static char *type_to_str(enum kv_value_type type) {
         return "integer";
     case KV_VALUE_MIME_PREF:
         return "mime preferences";
+    default:
+        assert(false && "unreachable");
     }
-    // ...
-    exit(EXIT_FAILURE);
 }
 
 void get_config(struct config_assign *assignments, size_t assignments_len) {
@@ -148,10 +147,10 @@ void get_config(struct config_assign *assignments, size_t assignments_len) {
 // not super efficient but it makes freeing easier
 // would make it filter through available_mimes, but pref order takes precedence over existing order
 // so then we would have to rearrange entries and it'd be a whole thing
-struct zzz_list matching_mimes(struct mime_pref pref, struct zzz_list *available_mimes) {
+struct zzz_list find_matching_mimes(struct mime_pref pref, const struct zzz_list *available_mimes) {
     switch (pref.type) {
     case SINGLE_MIME_ALL: {
-        struct zzz_list matching_mimes = zzz_list_empty;
+        struct zzz_list matching = zzz_list_empty;
         ZZZ_LIST_FOREACH(*available_mimes, available_mime) {
             unsigned char *mime = available_mime->value;
             // this used to have a check for SAVE_TARGETS
@@ -160,10 +159,10 @@ struct zzz_list matching_mimes(struct mime_pref pref, struct zzz_list *available
             int match = pcre2_match(pref.inner.regex.code, mime, PCRE2_ZERO_TERMINATED, 0, 0,
                     pref.inner.regex.match_data, NULL);
             if (match >= 0) {
-                zzz_list_append(&matching_mimes, strdup(available_mime->value));
+                zzz_list_append(&matching, strdup(available_mime->value));
             }
         }
-        return matching_mimes;
+        return matching;
     }
     case SINGLE_MIME_FIRST: {
         ZZZ_LIST_FOREACH(*available_mimes, available_mime) {
@@ -179,11 +178,9 @@ struct zzz_list matching_mimes(struct mime_pref pref, struct zzz_list *available
     case STORE_FIRST_MATCHING: {
         ZZZ_LIST_FOREACH(pref.inner.subprefs, subpref_node) {
             struct mime_pref *subpref = subpref_node->value;
-            struct zzz_list subpref_matching = matching_mimes(*subpref, available_mimes);
+            struct zzz_list subpref_matching = find_matching_mimes(*subpref, available_mimes);
             if (subpref_matching.len > 0) {
                 return subpref_matching;
-            } else {
-                zzz_list_free(&subpref_matching, NULL);
             }
         }
         return zzz_list_empty;
@@ -193,7 +190,7 @@ struct zzz_list matching_mimes(struct mime_pref pref, struct zzz_list *available
 
         ZZZ_LIST_FOREACH(pref.inner.subprefs, subpref_node) {
             struct mime_pref *subpref = subpref_node->value;
-            struct zzz_list subpref_matching = matching_mimes(*subpref, available_mimes);
+            struct zzz_list subpref_matching = find_matching_mimes(*subpref, available_mimes);
             ZZZ_LIST_FOREACH(subpref_matching, subpref_matching_node) {
                 // make sure it's not already been added to all_matching
                 // if only we had, like, sets or something
@@ -216,7 +213,6 @@ struct zzz_list matching_mimes(struct mime_pref pref, struct zzz_list *available
         return all_matching;
     }
     default:
-        fputs("unknown enum value\n", stderr);
-        exit(EXIT_FAILURE);
+        assert(false && "unreachable");
     }
 }

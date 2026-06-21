@@ -1,5 +1,5 @@
 // the index file is a list of clipboard items, newline separated
-// each "clipbaord item" is a list of filenames (8 characters), space separated
+// each "clipboard item" is a list of labels (8 characters), space separated
 // each file is a specific representation of the clipboard item
 // starts with mimetype, newline, then data of item
 
@@ -14,6 +14,7 @@
 #include <unistd.h>
 
 #include "storer.h"
+#include "xmalloc.h"
 #include "zzz_list.h"
 
 #define FILENAME_CHARS 8
@@ -64,41 +65,41 @@ void path_init(void) {
             exit(EXIT_FAILURE);
         }
         char *state_dirname = "/.local/state";
-        basedir = malloc(strlen(home) + strlen(state_dirname) + 1);
+        basedir = xmalloc(strlen(home) + strlen(state_dirname) + 1);
         basedir[0] = '\0';
         strcat(basedir, home);
         strcat(basedir, state_dirname);
     }
     char *zzz_dirname = "/zzzclip";
-    write_dir = malloc(strlen(basedir) + strlen(zzz_dirname) + 1);
+    write_dir = xmalloc(strlen(basedir) + strlen(zzz_dirname) + 1);
     write_dir[0] = '\0';
     strcat(write_dir, basedir);
     strcat(write_dir, zzz_dirname);
     mkdirp(write_dir);
 
     char *index_filename = "index";
-    index_path = malloc(strlen(write_dir) + 1 + strlen(index_filename) + 1);
+    index_path = xmalloc(strlen(write_dir) + 1 + strlen(index_filename) + 1);
     index_path[0] = '\0';
     strcat(index_path, write_dir);
     strcat(index_path, "/");
     strcat(index_path, index_filename);
 
-    char *filename_template = "indextmpXXXXXX";
-    tmp_index_template = malloc(strlen(write_dir) + 1 + strlen(filename_template) + 1);
+    char *template_filename = "indextmpXXXXXX";
+    tmp_index_template = xmalloc(strlen(write_dir) + 1 + strlen(template_filename) + 1);
     tmp_index_template[0] = '\0';
     strcat(tmp_index_template, write_dir);
     strcat(tmp_index_template, "/");
-    strcat(tmp_index_template, filename_template);
+    strcat(tmp_index_template, template_filename);
 }
 
 // wrapper around zzz_list_free
-static void void_zzz_list_free(void *list) {
+static void zzz_list_free_void(void *list) {
     zzz_list_free((struct zzz_list *)list, free);
     free(list);
 }
 
 bool read_index(void) {
-    zzz_list_free(&storer_index, void_zzz_list_free);
+    zzz_list_free(&storer_index, zzz_list_free_void);
     storer_index = zzz_list_empty;
 
     FILE *index_file = fopen(index_path, "r");
@@ -108,38 +109,45 @@ bool read_index(void) {
     }
     struct zzz_list curr_set = zzz_list_empty;
     while (true) {
-        char filename[FILENAME_CHARS + 1];
-        size_t filename_len = 0;
+        char label[FILENAME_CHARS + 1];
+        size_t label_len = 0;
         bool set_ended = false;
         bool file_ended = false;
         while (true) {
             char c = fgetc(index_file);
-            bool filename_ended = false;
+            bool label_ended = false;
             switch (c) {
             case EOF:
                 file_ended = true;
                 // fallthrough
+            case '\r':
             case '\n':
                 set_ended = true;
                 // fallthrough
             case ' ':
-                filename_ended = true;
+                label_ended = true;
                 break;
             default:
-                filename[filename_len++] = c;
-                filename_ended = filename_len >= FILENAME_CHARS;
+                if (label_len >= FILENAME_CHARS) {
+                    // label is too long, assume config file is corrupt
+                    zzz_list_free(&storer_index, zzz_list_free_void);
+                    fclose(index_file);
+                    return false;
+                } else {
+                    label[label_len++] = c;
+                }
             }
-            if (filename_ended) {
-                if (filename_len > 0) {
-                    filename[filename_len] = '\0';
-                    zzz_list_append(&curr_set, strdup(filename));
+            if (label_ended) {
+                if (label_len > 0) {
+                    label[label_len] = '\0';
+                    zzz_list_append(&curr_set, xstrdup(label));
                 }
                 break;
             }
         }
 
         if (set_ended && curr_set.len > 0) {
-            struct zzz_list *curr_set_alloc = malloc(sizeof(*curr_set_alloc));
+            struct zzz_list *curr_set_alloc = xmalloc(sizeof(*curr_set_alloc));
             *curr_set_alloc = curr_set;
             zzz_list_append(&storer_index, curr_set_alloc);
             curr_set = zzz_list_empty;
@@ -153,34 +161,38 @@ bool read_index(void) {
 }
 
 bool write_index(void) {
-    char *tmp_path = strdup(tmp_index_template);
+    bool success = false;
+    char *tmp_path = xstrdup(tmp_index_template);
     int tmp_index_fd = mkstemp(tmp_path);
+    if (tmp_index_fd == -1) {
+        free(tmp_path);
+        return false;
+    }
     // love buffering
     FILE *tmp_index = fdopen(tmp_index_fd, "w");
-    if (tmp_index == NULL) return false;
+    if (tmp_index == NULL) goto cleanup;
     ZZZ_LIST_FOREACH(storer_index, curr_index) {
-        struct zzz_list *filename_list = curr_index->value;
-        ZZZ_LIST_FOREACH(*filename_list, curr_filename_list) {
-            char *filename = curr_filename_list->value;
-            fwrite(filename, 1, strlen(filename), tmp_index);
+        struct zzz_list *label_list = curr_index->value;
+        ZZZ_LIST_FOREACH(*label_list, curr_label_list) {
+            char *label = curr_label_list->value;
+            fwrite(label, 1, strlen(label), tmp_index);
             fputc(' ', tmp_index);
         }
         fputc('\n', tmp_index);
     }
-    if (fsync(tmp_index_fd) != 0) {
-        free(tmp_path);
-        return false;
-    }
-    fclose(tmp_index);
-    if (rename(tmp_path, index_path) != 0) {
-        free(tmp_path);
-        return false;
+    if (fsync(tmp_index_fd) != 0) goto cleanup;
+    if (rename(tmp_path, index_path) != 0) goto cleanup;
+    success = true;
+cleanup:
+    // if early goto
+    if (tmp_index != NULL) {
+        fclose(tmp_index);
     }
     free(tmp_path);
-    return true;
+    return success;
 }
 
-void writer_init(void) {
+void storer_init(void) {
     srand(time(NULL));
     path_init();
     if (!read_index()) {
@@ -190,12 +202,22 @@ void writer_init(void) {
 }
 
 static char *path_from_label(const char *label) {
-    char *path = malloc(strlen(write_dir) + 1 + strlen(label) + 1);
+    char *path = xmalloc(strlen(write_dir) + 1 + strlen(label) + 1);
     path[0] = '\0';
     strcat(path, write_dir);
     strcat(path, "/");
     strcat(path, label);
     return path;
+}
+
+static bool delete_single_label(const char *label) {
+    char *path = path_from_label(label);
+    bool success = remove(path) == 0;
+    free(path);
+    if (!success) {
+        fprintf(stderr, "warning: failed to remove clip file %s\n", label);
+    }
+    return success;
 }
 
 bool trim_items(long long max_entries_longlong) {
@@ -234,18 +256,14 @@ bool trim_items(long long max_entries_longlong) {
 
     if (!write_index()) return false;
 
+    bool success = true;
     ZZZ_LIST_FOREACH(to_drop, drop_node) {
-        ZZZ_LIST_FOREACH(*(struct zzz_list *)drop_node->value, filename_node) {
-            char *path = path_from_label(filename_node->value);
-            if (remove(path) != 0) {
-                free(path);
-                return false;
-            }
-            free(path);
+        ZZZ_LIST_FOREACH(*(struct zzz_list *)drop_node->value, label_node) {
+            success &= delete_single_label(label_node->value);
         }
     }
-    zzz_list_free(&to_drop, void_zzz_list_free);
-    return true;
+    zzz_list_free(&to_drop, zzz_list_free_void);
+    return success;
 }
 
 bool write_items(const struct zzz_list *clip_items) {
@@ -258,23 +276,27 @@ bool write_items(const struct zzz_list *clip_items) {
         return true;
     }
 
-    struct zzz_list filenames = zzz_list_empty;
+    struct zzz_list labels = zzz_list_empty;
     ZZZ_LIST_FOREACH(*clip_items, curr_clip_item) {
         struct clip_item *item = curr_clip_item->value;
 
-        char filename[FILENAME_CHARS + 1];
+        char label[FILENAME_CHARS + 1];
         FILE *data_file;
-        // loop to ensure no filename collisions (unlikely anyway)
+        // loop to ensure no label collisions (unlikely anyway)
+        // set maximum tries to make sure it doesn't infinitely loop
+        int tries = 1000;
         do {
-            unsigned int filename_int = rand();
-            snprintf(filename, FILENAME_CHARS + 1, "%0"STRINGIFY(FILENAME_CHARS)"x", filename_int);
-            char *data_path = path_from_label(filename);
+            unsigned int label_int = rand();
+            snprintf(label, FILENAME_CHARS + 1, "%0"STRINGIFY(FILENAME_CHARS)"x", label_int);
+            char *data_path = path_from_label(label);
             data_file = fopen(data_path, "wx");
             free(data_path);
-        } while (data_file == NULL && errno == EEXIST);
+            tries--;
+        } while (data_file == NULL && errno == EEXIST && tries >= 0);
         // if true, this means we encountered error that isn't just EEXIST
-        if (data_file == NULL) {
-            zzz_list_free(&filenames, free);
+        // or we ran out of tries (how? i guess if the directory gets nuked?)
+        if (data_file == NULL || tries == 0) {
+            zzz_list_free(&labels, free);
             return false;
         }
         fputs(item->mime, data_file);
@@ -282,27 +304,25 @@ bool write_items(const struct zzz_list *clip_items) {
         fwrite(item->data, 1, item->len, data_file);
         fclose(data_file);
 
-        zzz_list_append(&filenames, strdup(filename));
+        zzz_list_append(&labels, xstrdup(label));
     }
-    struct zzz_list *filenames_alloc = malloc(sizeof(*filenames_alloc));
-    *filenames_alloc = filenames;
-    zzz_list_prepend(&storer_index, filenames_alloc);
+    struct zzz_list *labels_alloc = xmalloc(sizeof(*labels_alloc));
+    *labels_alloc = labels;
+    zzz_list_prepend(&storer_index, labels_alloc);
     return write_index();
 }
 
 // deletes a set of items using the label of the first
-bool delete_items(const char *label) {
+bool delete_items(const char *set_label) {
     ZZZ_LIST_FOREACH(storer_index, index_node) {
         struct zzz_list *items = index_node->value;
         if (items->len <= 0) continue;
         char *first = zzz_list_by_idx(items, 0);
-        if (strcmp(first, label) != 0) continue;
+        if (strcmp(first, set_label) != 0) continue;
         zzz_list_remove_node(&storer_index, index_node);
         bool success = write_index();
         ZZZ_LIST_FOREACH(*items, items_node) {
-            char *path = path_from_label(items_node->value);
-            success &= remove(path) == 0;
-            free(path);
+            success &= delete_single_label(items_node->value);
         }
         zzz_list_free(items, free);
         free(items);
@@ -311,13 +331,10 @@ bool delete_items(const char *label) {
     return false;
 }
 
-FILE *access_file(const char *label) {
+FILE *open_clip_file(const char *label) {
     char *path = path_from_label(label);
     FILE *file = fopen(path, "r");
     free(path);
-    if (file == NULL) {
-        return NULL;
-    }
     return file;
 }
 
@@ -325,11 +342,8 @@ char *read_mime(FILE *file) {
     size_t mime_len = 0;
     char c;
     while ((c = fgetc(file)) != EOF && c != '\0') mime_len++;
-    if (fseek(file, 0, SEEK_SET) != 0) {
-        // ?
-        return NULL;
-    }
-    char *mime = malloc(mime_len + 1);
+    if (fseek(file, 0, SEEK_SET) != 0) return NULL;
+    char *mime = xmalloc(mime_len + 1);
     // plus one to consume the null byte
     size_t num_read = fread(mime, 1, mime_len + 1, file);
     if (num_read != mime_len + 1) {
@@ -343,28 +357,23 @@ char *read_mime(FILE *file) {
 
 bool file_remaining_bytes(FILE *file, size_t *bytes) {
     long starting_offset = ftell(file);
-    if (starting_offset == -1) {
-        return false;
-    }
-    // TODO apparently SEEK_END on binary files isn't portable?
-    if (fseek(file, 0, SEEK_END) != 0) {
-        return false;
-    }
+    if (starting_offset == -1) return false;
+
+    // apparently SEEK_END on binary files isn't portable?
+    // but it seems to be a very rare case anyway and maybe non-issue on POSIX
+    if (fseek(file, 0, SEEK_END) != 0) return false;
     long ending_offset = ftell(file);
-    if (ending_offset == -1) {
-        return false;
-    }
-    if (fseek(file, starting_offset, SEEK_SET) != 0) {
-        return false;
-    }
+    if (ending_offset == -1) return false;
+    if (fseek(file, starting_offset, SEEK_SET) != 0) return false;
+
     *bytes = ending_offset - starting_offset;
     return true;
 }
 
-bool read_item(const char *filename, struct clip_item *res) {
-    bool status = false;
+bool read_item(const char *label, struct clip_item *res) {
+    bool success = false;
 
-    FILE *file = access_file(filename);
+    FILE *file = open_clip_file(label);
     if (file == NULL) {
         return false;
     }
@@ -372,17 +381,24 @@ bool read_item(const char *filename, struct clip_item *res) {
     char *mime = read_mime(file);
     if (mime == NULL) goto cleanup;
     size_t len;
-    if (!file_remaining_bytes(file, &len)) goto cleanup;
-    char *data = malloc(len);
-    if (fread(data, 1, len, file) != len) goto cleanup;
+    if (!file_remaining_bytes(file, &len)) {
+        free(mime);
+        goto cleanup;
+    }
+    char *data = xmalloc(len);
+    if (fread(data, 1, len, file) != len) {
+        free(mime);
+        free(data);
+        goto cleanup;
+    }
     *res = (struct clip_item) {
         .mime = mime,
         .data = data,
         .len = len,
     };
-    status = true;
+    success = true;
 
 cleanup:
     fclose(file);
-    return status;
+    return success;
 }

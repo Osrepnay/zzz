@@ -155,7 +155,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    writer_init();
+    storer_init();
 
     struct wl_registry *registry = wl_display_get_registry(display);
     wl_registry_add_listener(registry, &registry_listener, &registry_state);

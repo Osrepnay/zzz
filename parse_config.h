@@ -49,13 +49,13 @@ struct keyvalue {
 };
 
 struct parse_state {
-    char *text;
+    const char *text;
     size_t text_len;
     size_t idx;
     size_t line;
     size_t column;
 };
 
-bool parse_config(char *text, struct zzz_list *ret_keyvalues);
+bool parse_config(struct zzz_list *keyvalues, const char *text);
 
 #endif

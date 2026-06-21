@@ -2,6 +2,7 @@
 #define ZZZ_LIST_H
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stddef.h>
 
 struct zzz_list_node {
@@ -18,15 +19,14 @@ struct zzz_list {
 
 extern const struct zzz_list zzz_list_empty;
 
-struct zzz_list zzz_list_singleton(void *);
-// ! also frees contents !
+struct zzz_list zzz_list_singleton(void *value);
 void zzz_list_free(struct zzz_list *list, void free_func(void *));
 void zzz_list_prepend(struct zzz_list *list, void *value);
 void zzz_list_append(struct zzz_list *list, void *value);
 void zzz_list_remove_node(struct zzz_list *list, struct zzz_list_node *node);
 // void zzz_list_reverse(struct zzz_list *list);
 // only copies structure, pointers are not copied
-struct zzz_list zzz_list_copy(const struct zzz_list *list);
+struct zzz_list zzz_list_copy(const struct zzz_list *orig_list);
 void *zzz_list_by_idx(const struct zzz_list *list, size_t idx);
 
 #define ZZZ_LIST_FOREACH(list, varname) \

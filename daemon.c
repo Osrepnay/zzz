@@ -260,7 +260,7 @@ static struct zzz_list process_offer(struct daemon_device_state *state, struct z
     }
 
     // save ones we care about
-    struct zzz_list mimes_to_save = matching_mimes(daemon_opts.pref, &offer_mimes);
+    struct zzz_list mimes_to_save = find_matching_mimes(daemon_opts.pref, &offer_mimes);
     zzz_list_free(&offer_mimes, free);
 
     return mimes_to_save;

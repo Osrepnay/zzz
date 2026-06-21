@@ -40,7 +40,7 @@ bool fprint_line(FILE *f, const struct zzz_list *filenames, bool print_label) {
     size_t len;
     bool is_text = false;
     ZZZ_LIST_FOREACH(*filenames, filename_node) {
-        FILE *file = access_file(filename_node->value);
+        FILE *file = open_clip_file(filename_node->value);
         // is it a good idea to silently skip?
         if (file == NULL) continue;
         char *mime = read_mime(file);
