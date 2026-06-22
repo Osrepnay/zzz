@@ -18,6 +18,7 @@
 #include "read_config.h"
 #include "storer.h"
 #include "wlr-data-control-protocol.h"
+#include "xmalloc.h"
 #include "zzz_list.h"
 
 struct daemon_opts daemon_opts = {
@@ -42,7 +43,7 @@ static void offer_new_offer(void *data, struct zwlr_data_control_offer_v1 *offer
     struct zzz_list *current_mimes = data;
     (void) offer;
 
-    char *duped = strdup(mime);
+    char *duped = xstrdup(mime);
     zzz_list_append(current_mimes, duped);
 }
 
@@ -123,7 +124,7 @@ struct zzz_list find_matching_mimes(struct mime_pref pref, const struct zzz_list
             // which is bad
             int match = regexec(pref.inner.regex.pattern_buf, mime, 0, NULL, 0);
             if (match == 0) {
-                zzz_list_append(&matching, strdup(available_mime->value));
+                zzz_list_append(&matching, xstrdup(available_mime->value));
             }
         }
         return matching;
@@ -133,7 +134,7 @@ struct zzz_list find_matching_mimes(struct mime_pref pref, const struct zzz_list
             char *mime = available_mime->value;
             int match = regexec(pref.inner.regex.pattern_buf, mime, 0, NULL, 0);
             if (match == 0) {
-                return zzz_list_singleton(strdup(available_mime->value));
+                return zzz_list_singleton(xstrdup(available_mime->value));
             }
         }
         return zzz_list_empty;
@@ -187,7 +188,7 @@ static void device_data_offer(void *data, struct zwlr_data_control_device_v1 *de
     (void) device;
     struct daemon_device_state *state = data;
 
-    struct full_offer *full_offer = malloc(sizeof(*full_offer));
+    struct full_offer *full_offer = xmalloc(sizeof(*full_offer));
     *full_offer = (struct full_offer) {
         .offer = offer,
         .mimes = zzz_list_empty,
@@ -206,9 +207,9 @@ static bool safe_roundtrip(struct daemon_device_state *state) {
 static void read_fds(struct zzz_list *saved_items, struct zzz_list *mimes, int *fds) {
     size_t chunk_size = 1024;
 
-    struct pollfd *pollfds = malloc(sizeof(*pollfds) * mimes->len);
-    size_t *data_capacities = malloc(sizeof(*data_capacities) * mimes->len);
-    struct clip_item *clip_items = malloc(sizeof(*clip_items) * mimes->len);
+    struct pollfd *pollfds = xmalloc(sizeof(*pollfds) * mimes->len);
+    size_t *data_capacities = xmalloc(sizeof(*data_capacities) * mimes->len);
+    struct clip_item *clip_items = xmalloc(sizeof(*clip_items) * mimes->len);
     size_t i = 0;
     ZZZ_LIST_FOREACH(*mimes, mimes_node) {
         pollfds[i] = (struct pollfd) {
@@ -220,7 +221,7 @@ static void read_fds(struct zzz_list *saved_items, struct zzz_list *mimes, int *
         data_capacities[i] = chunk_size;
         clip_items[i] = (struct clip_item) {
             .mime = mimes_node->value,
-            .data = malloc(chunk_size),
+            .data = xmalloc(chunk_size),
             .len = 0,
         };
 
@@ -235,7 +236,7 @@ static void read_fds(struct zzz_list *saved_items, struct zzz_list *mimes, int *
             if (pollfds[i].fd < 0) continue;
             while (true) {
                 if (clip_items[i].len + chunk_size > data_capacities[i]) {
-                    clip_items[i].data = realloc(clip_items[i].data, data_capacities[i] *= 2);
+                    clip_items[i].data = xrealloc(clip_items[i].data, data_capacities[i] *= 2);
                 }
                 ssize_t bytes_read = read(pollfds[i].fd, clip_items[i].data + clip_items[i].len, chunk_size);
                 bool this_done = false;
@@ -280,7 +281,7 @@ static void read_fds(struct zzz_list *saved_items, struct zzz_list *mimes, int *
     for (size_t i = 0; i < mimes->len; i++) {
         // checking mime for nullness is just a proxy to see if the item is blanked
         if (clip_items[i].mime != NULL) {
-            struct clip_item *item = malloc(sizeof(*item));
+            struct clip_item *item = xmalloc(sizeof(*item));
             *item = clip_items[i];
             zzz_list_append(saved_items, item);
         }
@@ -360,8 +361,8 @@ static void store_selection(struct daemon_device_state *state, struct zwlr_data_
         return;
     }
 
-    int *recv_fds = malloc(sizeof(*recv_fds) * mimes_to_save.len);
-    int *send_fds = malloc(sizeof(*recv_fds) * mimes_to_save.len);
+    int *recv_fds = xmalloc(sizeof(*recv_fds) * mimes_to_save.len);
+    int *send_fds = xmalloc(sizeof(*recv_fds) * mimes_to_save.len);
     receive_offer(&mimes_to_save, offer, recv_fds, send_fds);
 
     // won't start sending through pipe without roundtrip going through
@@ -403,7 +404,7 @@ static void replace_selection(struct daemon_device_state *state, struct zwlr_dat
         }
         zwlr_data_control_source_v1_offer(source, INTERNAL_MIME);
         // freed on cancelled event
-        struct zzz_list *saved_items_alloc = malloc(sizeof(*saved_items_alloc));
+        struct zzz_list *saved_items_alloc = xmalloc(sizeof(*saved_items_alloc));
         *saved_items_alloc = state->saved_items;
         state->saved_items = zzz_list_empty;
         zwlr_data_control_source_v1_add_listener(source, &source_listener, saved_items_alloc);
@@ -459,7 +460,7 @@ static struct zwlr_data_control_device_v1_listener daemon_device_listener = {
 
 void daemon_dcm_callback(void *data, struct wl_objs *wl_objs) {
     (void) data;
-    struct daemon_device_state *state = malloc(sizeof(*state));
+    struct daemon_device_state *state = xmalloc(sizeof(*state));
     *state = (struct daemon_device_state) {
         .wl_objs = wl_objs,
         .pending_offers = zzz_list_empty,

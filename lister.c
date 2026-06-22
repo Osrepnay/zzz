@@ -6,6 +6,7 @@
 
 #include "lister.h"
 #include "storer.h"
+#include "xmalloc.h"
 #include "zzz_list.h"
 
 struct lister_opts lister_opts = {
@@ -64,7 +65,7 @@ bool fprint_line(FILE *f, const struct zzz_list *filenames, bool print_label) {
                 } else if (len > (size_t)lister_opts.max_preview) {
                     len = lister_opts.max_preview;
                 }
-                data = malloc(len);
+                data = xmalloc(len);
                 if (fread(data, 1, len, file) == len) {
                     if (old_data != NULL) {
                         free(old_data);

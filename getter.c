@@ -13,6 +13,7 @@
 #include "selector.h"
 #include "storer.h"
 #include "wlr-data-control-protocol.h"
+#include "xmalloc.h"
 #include "zzz_list.h"
 
 struct getter_opts getter_opts;
@@ -46,11 +47,11 @@ static struct zwlr_data_control_source_v1_listener source_listener = {
 };
 
 static void handle_labels(struct wl_objs *wl_objs, const struct zzz_list *labels) {
-    struct zzz_list *clip_items = malloc(sizeof(*clip_items));
+    struct zzz_list *clip_items = xmalloc(sizeof(*clip_items));
     *clip_items = zzz_list_empty;
     ZZZ_LIST_FOREACH(*labels, filename_node) {
         char *filename = filename_node->value;
-        struct clip_item *clip_item = malloc(sizeof(*clip_item));
+        struct clip_item *clip_item = xmalloc(sizeof(*clip_item));
         if (!read_item(filename, clip_item)) {
             fprintf(stderr, "error reading file %s, aborting\n", filename);
             exit(EXIT_FAILURE);

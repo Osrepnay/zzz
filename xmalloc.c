@@ -17,6 +17,10 @@ void *xmalloc(size_t size) {
     return ptr_nonnull(malloc(size));
 }
 
+void *xrealloc(void *old, size_t size) {
+    return ptr_nonnull(realloc(old, size));
+}
+
 char *xstrdup(const char *str) {
     return ptr_nonnull(strdup(str));
 }

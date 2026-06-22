@@ -9,6 +9,7 @@
 
 #include "lister.h"
 #include "storer.h"
+#include "xmalloc.h"
 #include "zzz_list.h"
 
 static bool parse_long(const char *str, long *res) {
@@ -51,7 +52,7 @@ bool select_labels_with_command(char *const *argv, int argc, struct zzz_list *la
         close(stdout_fds[1]);
         if (failed) break;
 
-        char **null_term_argv = malloc(sizeof(*null_term_argv) * (argc + 1));
+        char **null_term_argv = xmalloc(sizeof(*null_term_argv) * (argc + 1));
         memcpy(null_term_argv, argv, sizeof(*null_term_argv) * argc);
         null_term_argv[argc] = NULL;
         execvp(null_term_argv[0], null_term_argv);
