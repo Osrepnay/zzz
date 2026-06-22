@@ -15,10 +15,10 @@ clean:
 	rm -r build/*
 
 build/event-viewer: build/zzz event_viewer.c
-	$(CC) $(CFLAGS) -lwayland-client -lpcre2-8 -o build/event-viewer event_viewer.c build/*.o
+	$(CC) $(CFLAGS) -lwayland-client -o build/event-viewer event_viewer.c build/*.o
 
 build/zzz: main.c build/wlr-data-control-protocol.o build/xmalloc.o build/zzz_list.o build/read_config.o build/parse_config.o build/selector.o build/storer.o build/daemon.o build/getter.o build/lister.o build/registry.o
-	$(CC) $(CFLAGS) -lwayland-client -lpcre2-8 -o build/zzz main.c build/*.o
+	$(CC) $(CFLAGS) -lwayland-client -o build/zzz main.c build/*.o
 
 build/daemon.o: daemon.c daemon.h
 	$(CC) $(CFLAGS) -c -o build/daemon.o daemon.c
