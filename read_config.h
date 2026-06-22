@@ -15,6 +15,5 @@ struct config_assign {
 };
 
 void get_config(struct config_assign *assignments, size_t assignments_len);
-struct zzz_list find_matching_mimes(struct mime_pref pref, const struct zzz_list *available_mimes);
 
 #endif

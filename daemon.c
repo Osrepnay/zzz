@@ -110,6 +110,80 @@ static bool full_offers_remove(struct zzz_list *list,
     return false;
 }
 
+// the mimes this returns are owned/newly allocated
+// not super efficient but it makes freeing easier
+// would make it filter through available_mimes, but pref order takes precedence over existing order
+// so then we would have to rearrange entries and it'd be a whole thing
+struct zzz_list find_matching_mimes(struct mime_pref pref, const struct zzz_list *available_mimes) {
+    switch (pref.type) {
+    case SINGLE_MIME_ALL: {
+        struct zzz_list matching = zzz_list_empty;
+        ZZZ_LIST_FOREACH(*available_mimes, available_mime) {
+            unsigned char *mime = available_mime->value;
+            // this used to have a check for SAVE_TARGETS
+            // but that only really gets triggered if your mime is .* or something
+            // which is bad
+            int match = pcre2_match(pref.inner.regex.code, mime, PCRE2_ZERO_TERMINATED, 0, 0,
+                    pref.inner.regex.match_data, NULL);
+            if (match >= 0) {
+                zzz_list_append(&matching, strdup(available_mime->value));
+            }
+        }
+        return matching;
+    }
+    case SINGLE_MIME_FIRST: {
+        ZZZ_LIST_FOREACH(*available_mimes, available_mime) {
+            unsigned char *mime = available_mime->value;
+            int match = pcre2_match(pref.inner.regex.code, mime, PCRE2_ZERO_TERMINATED, 0, 0,
+                    pref.inner.regex.match_data, NULL);
+            if (match >= 0) {
+                return zzz_list_singleton(strdup(available_mime->value));
+            }
+        }
+        return zzz_list_empty;
+    }
+    case STORE_FIRST_MATCHING: {
+        ZZZ_LIST_FOREACH(pref.inner.subprefs, subpref_node) {
+            struct mime_pref *subpref = subpref_node->value;
+            struct zzz_list subpref_matching = find_matching_mimes(*subpref, available_mimes);
+            if (subpref_matching.len > 0) {
+                return subpref_matching;
+            }
+        }
+        return zzz_list_empty;
+    }
+    case STORE_ALL_MATCHING: {
+        struct zzz_list all_matching = zzz_list_empty;
+
+        ZZZ_LIST_FOREACH(pref.inner.subprefs, subpref_node) {
+            struct mime_pref *subpref = subpref_node->value;
+            struct zzz_list subpref_matching = find_matching_mimes(*subpref, available_mimes);
+            ZZZ_LIST_FOREACH(subpref_matching, subpref_matching_node) {
+                // make sure it's not already been added to all_matching
+                // if only we had, like, sets or something
+                // mime lists should be really short anyway, but TODO
+                bool exists = false;
+                ZZZ_LIST_FOREACH(all_matching, all_matching_node) {
+                    if (strcmp(all_matching_node->value, subpref_matching_node->value) == 0) {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (!exists) {
+                    zzz_list_append(&all_matching, subpref_matching_node->value);
+                } else {
+                    free(subpref_matching_node->value);
+                }
+            }
+            zzz_list_free(&subpref_matching, NULL);
+        }
+        return all_matching;
+    }
+    default:
+        assert(false && "unreachable");
+    }
+}
+
 // store offer from offer introduction and listen for mimes
 // offer will be stored until device_selection where it is actually used
 // otherwise, might start working on a primary selection offer
