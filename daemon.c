@@ -3,7 +3,9 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <poll.h>
+#include <regex.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,10 +13,6 @@
 #include <unistd.h>
 #include <wayland-client.h>
 #include <wayland-util.h>
-#include <sys/select.h>
-
-#define PCRE2_CODE_UNIT_WIDTH 8
-#include <pcre2.h>
 
 #include "daemon.h"
 #include "read_config.h"
@@ -119,13 +117,12 @@ struct zzz_list find_matching_mimes(struct mime_pref pref, const struct zzz_list
     case SINGLE_MIME_ALL: {
         struct zzz_list matching = zzz_list_empty;
         ZZZ_LIST_FOREACH(*available_mimes, available_mime) {
-            unsigned char *mime = available_mime->value;
+            char *mime = available_mime->value;
             // this used to have a check for SAVE_TARGETS
             // but that only really gets triggered if your mime is .* or something
             // which is bad
-            int match = pcre2_match(pref.inner.regex.code, mime, PCRE2_ZERO_TERMINATED, 0, 0,
-                    pref.inner.regex.match_data, NULL);
-            if (match >= 0) {
+            int match = regexec(pref.inner.regex.pattern_buf, mime, 0, NULL, 0);
+            if (match == 0) {
                 zzz_list_append(&matching, strdup(available_mime->value));
             }
         }
@@ -133,10 +130,9 @@ struct zzz_list find_matching_mimes(struct mime_pref pref, const struct zzz_list
     }
     case SINGLE_MIME_FIRST: {
         ZZZ_LIST_FOREACH(*available_mimes, available_mime) {
-            unsigned char *mime = available_mime->value;
-            int match = pcre2_match(pref.inner.regex.code, mime, PCRE2_ZERO_TERMINATED, 0, 0,
-                    pref.inner.regex.match_data, NULL);
-            if (match >= 0) {
+            char *mime = available_mime->value;
+            int match = regexec(pref.inner.regex.pattern_buf, mime, 0, NULL, 0);
+            if (match == 0) {
                 return zzz_list_singleton(strdup(available_mime->value));
             }
         }

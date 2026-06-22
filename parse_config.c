@@ -1,3 +1,4 @@
+#include <regex.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,8 +47,8 @@ static void free_pref_noptr(struct mime_pref prefs) {
     switch (prefs.type) {
     case SINGLE_MIME_ALL:
     case SINGLE_MIME_FIRST:
-        pcre2_code_free(prefs.inner.regex.code);
-        pcre2_match_data_free(prefs.inner.regex.match_data);
+        regfree(prefs.inner.regex.pattern_buf);
+        free(prefs.inner.regex.regex);
         break;
     case STORE_ALL_MATCHING:
     case STORE_FIRST_MATCHING: {
@@ -148,36 +149,30 @@ static bool take_whitespace(struct parse_state *state) {
 
 GEN_STR_PARSE(parse_mime_regex_str, strchr("[]()", peek_char(state)) == NULL)
 
-static bool parse_mime_regex(struct parse_state *state, struct regex_with_match_data *regex) {
-    char *str;
-    if (!parse_mime_regex_str(state, &str)) {
+static bool parse_mime_regex(struct parse_state *state, struct compiled_regex *regex) {
+    char *raw_regex_str;
+    if (!parse_mime_regex_str(state, &raw_regex_str)) {
         return false;
     }
-    int err_code;
-    size_t err_offset;
-    pcre2_code *compiled_regex = pcre2_compile(
-            (PCRE2_SPTR8)str,
-            PCRE2_ZERO_TERMINATED,
-            PCRE2_CASELESS | PCRE2_ANCHORED | PCRE2_ENDANCHORED,
-            &err_code, &err_offset, NULL
-    );
-    bool success = compiled_regex != NULL;
+    // insert anchors so the regex is forced to match the whole string
+    char *regex_str = xmalloc(2 + strlen(raw_regex_str) + 2 + 1);
+    sprintf(regex_str, "^(%s)$", raw_regex_str);
+    free(raw_regex_str);
+
+    regex_t *pattern_buf = xmalloc(sizeof(*pattern_buf));
+    int regcomp_status = regcomp(pattern_buf, regex_str, REG_EXTENDED | REG_ICASE | REG_NOSUB);
+    bool success = regcomp_status == 0;
     if (success) {
-        pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(compiled_regex, NULL);
-        if (match_data == NULL) {
-            success = false;
-            pcre2_code_free(compiled_regex);
-        } else {
-            regex->match_data = match_data;
-            regex->code = compiled_regex;
-        }
+        regex->regex = regex_str;
+        regex->pattern_buf = pattern_buf;
     } else {
-        char pcre2_err_buf[256];
-        pcre2_get_error_message(err_code, (PCRE2_UCHAR *)pcre2_err_buf, 256);
+        char err_buf[256];
+        regerror(regcomp_status, pattern_buf, err_buf, sizeof(err_buf));
         report_err_header(state);
-        fprintf(stderr, "invalid regex: %s at offset %zu\n", pcre2_err_buf, err_offset);
+        fprintf(stderr, "invalid regex: %s\n", err_buf);
+        free(regex_str);
+        free(pattern_buf);
     }
-    free(str);
     return success;
 }
 
@@ -266,7 +261,7 @@ static bool parse_mime_prefs(struct parse_state *state, enum parent_type parent_
         }, true
     ));
     if (parent_type != PARENT_NONE) {
-        struct regex_with_match_data regex;
+        struct compiled_regex regex;
         TRY_ALTERNATIVE(state, parse_mime_regex(state, &regex) && (
             *mime_pref = (struct mime_pref) {
                 .type = parent_type == PARENT_ALL ? SINGLE_MIME_ALL : SINGLE_MIME_FIRST,

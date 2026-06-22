@@ -1,10 +1,9 @@
 #ifndef PARSE_CONFIG_H
 #define PARSE_CONFIG_H
 
+#include <regex.h>
 #include <stdbool.h>
 #include <stddef.h>
-#define PCRE2_CODE_UNIT_WIDTH 8
-#include <pcre2.h>
 
 #include "zzz_list.h"
 
@@ -15,15 +14,17 @@ enum mime_pref_type {
     STORE_ALL_MATCHING,
 };
 
-struct regex_with_match_data {
-    pcre2_code *code;
-    pcre2_match_data *match_data;
+struct compiled_regex {
+    // i'm pretty sure storing the actual char *
+    // is unnecessary now but it helps with debugging
+    char *regex;
+    regex_t *pattern_buf;
 };
 
 struct mime_pref {
     enum mime_pref_type type;
     union {
-        struct regex_with_match_data regex;
+        struct compiled_regex regex;
         struct zzz_list subprefs;
     } inner;
 };
@@ -34,9 +35,7 @@ enum kv_value_type {
     KV_VALUE_MIME_PREF,
 };
 
-struct kv_value {
-    enum kv_value_type type;
-    union {
+struct kv_value { enum kv_value_type type; union {
         bool boolean;
         long long integer;
         struct mime_pref mime_pref;

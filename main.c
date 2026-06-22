@@ -1,9 +1,7 @@
 #define _XOPEN_SOURCE 500
 
+#include <stdlib.h>
 #include <string.h>
-
-#define PCRE2_CODE_UNIT_WIDTH 8
-#include <pcre2.h>
 
 #include "daemon.h"
 #include "getter.h"

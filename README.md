@@ -49,7 +49,6 @@ mime-pref = [
 - better error handling/cleanup
 - support ext-data-control in addition to wlr-data-control
 - deduplicating
-- posix regex
 - clean up init situation
 - cli getting/deleting
 - fix cli parsing and help
