@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <stdio.h>
@@ -24,52 +25,86 @@ static bool parse_long(const char *str, long *res) {
 bool select_labels_with_command(struct zzz_list *labels, const struct zzz_list *store_index, char *const *argv, int argc) {
     int stdin_fds[2];
     int stdout_fds[2];
-    if (pipe(stdin_fds) == -1 || pipe(stdout_fds) == -1) {
-        perror("pipe");
-        return false;
-    }
-    pid_t pid = fork();
+    // detecting error in the exec
+    int error_fds[2];
     bool failed = false;
+    char *err_str;
+
+    if (pipe(stdin_fds) == -1
+            || pipe(stdout_fds) == -1
+            || pipe(error_fds) == -1
+            || fcntl(error_fds[1], F_SETFD, fcntl(error_fds[1], F_GETFD) | FD_CLOEXEC)) {
+        failed = true;
+        err_str = strerror(errno);
+        goto end;
+    }
+
+    pid_t pid = fork();
     switch (pid) {
     case -1:
-        perror("fork");
+        err_str = strerror(errno);
         failed = true;
         close(stdin_fds[0]);
         close(stdin_fds[1]);
         close(stdout_fds[0]);
         close(stdout_fds[1]);
+        close(error_fds[0]);
+        close(error_fds[1]);
         break;
     case 0:
         close(stdin_fds[1]);
         close(stdout_fds[0]);
+        close(error_fds[0]);
         if (dup2(stdin_fds[0], STDIN_FILENO) == -1
                 || dup2(stdout_fds[1], STDOUT_FILENO) == -1) {
-            perror("dup");
+            err_str = strerror(errno);
             failed = true;
         }
         close(stdin_fds[0]);
         close(stdout_fds[1]);
-        if (failed) break;
+        if (failed) {
+            close(error_fds[1]);
+            break;
+        }
 
         char **null_term_argv = xmalloc(sizeof(*null_term_argv) * (argc + 1));
         memcpy(null_term_argv, argv, sizeof(*null_term_argv) * argc);
         null_term_argv[argc] = NULL;
         execvp(null_term_argv[0], null_term_argv);
-        perror("exec");
+        write(error_fds[1], &errno, sizeof(errno));
+        close(error_fds[1]);
         exit(EXIT_FAILURE);
         break;
     default:;
         close(stdin_fds[0]);
         close(stdout_fds[1]);
-        FILE *file = fdopen(stdin_fds[1], "w");
-        signal(SIGPIPE, SIG_IGN);
-        if (!fprint_listing(file, store_index, false)) {
+        close(error_fds[1]);
+        // check if the exec succeeded
+        int other_errno = 0;
+        size_t bytes_read = 0;
+        while (bytes_read < sizeof(other_errno)) {
+            ssize_t status = read(error_fds[0], ((char *)&other_errno) + bytes_read, sizeof(other_errno) - bytes_read);
+            if (status <= 0) break;
+            bytes_read += status;
+        }
+        close(error_fds[0]);
+        if (bytes_read == sizeof(other_errno)) {
             failed = true;
+            err_str = strerror(other_errno);
+            close(stdin_fds[1]);
+            close(stdout_fds[0]);
+            break;
+        }
+
+        FILE *stdin_file = fdopen(stdin_fds[1], "w");
+        signal(SIGPIPE, SIG_IGN);
+        if (!fprint_listing(stdin_file, store_index, false)) {
+            failed = true;
+            err_str = "failed to send data to selector";
         }
         signal(SIGPIPE, SIG_DFL);
-        fclose(file);
+        fclose(stdin_file);
         if (failed) {
-            fputs("failed to send data to selector\n", stderr);
             close(stdout_fds[0]);
             break;
         }
@@ -81,25 +116,29 @@ bool select_labels_with_command(struct zzz_list *labels, const struct zzz_list *
         }
         close(stdout_fds[0]);
         if (read_ct < 0) {
-            perror("read");
             failed = true;
+            err_str = strerror(errno);
             break;
         }
         numbuf[numbuf_len] = '\0';
 
         if (numbuf_len == 0) {
-            fputs("nothing selected\n", stderr);
             failed = true;
+            err_str = "nothing selected";
             break;
         }
         long idx;
         if (!parse_long(numbuf, &idx)) {
-            fputs("failed when reading from selector program, is it configured to print the index?\n", stderr);
             failed = true;
+            err_str = "failed when reading from selector program, is it configured to print the index?";
             break;
         }
         *labels = *(struct zzz_list *)zzz_list_by_idx(store_index, idx);
         break;
+    }
+end:
+    if (failed) {
+        fprintf(stderr, "selector failed: %s\n", err_str);
     }
     return !failed;
 }

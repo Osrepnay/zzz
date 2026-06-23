@@ -54,7 +54,6 @@ mime-pref = [
 - human readable sizes
 - FUSE
 - non-index-selector support
-- handle exec failure properly
 
 ## warning
 
