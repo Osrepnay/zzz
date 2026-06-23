@@ -22,6 +22,10 @@
 #define STRINGIFY(a) STRINGIFY_VALUE(a)
 #define STRINGIFY_VALUE(a) #a
 
+struct store_opts store_opts = {
+    .max_entries = 100,
+};
+
 void free_clip_item_void(void *clip_item_void) {
     struct clip_item *clip_item = clip_item_void;
     free(clip_item->mime);
@@ -238,9 +242,9 @@ static bool delete_single_label(const char *label) {
     return success;
 }
 
-bool trim_items(struct zzz_list *store_index, long long max_entries_longlong) {
-    size_t max_entries = max_entries_longlong;
-    if (max_entries_longlong < 0) {
+bool trim_items(struct zzz_list *store_index) {
+    size_t max_entries = store_opts.max_entries;
+    if (store_opts.max_entries < 0) {
         max_entries = 0;
     }
 

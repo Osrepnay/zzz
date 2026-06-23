@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
         {
             .name = "max-entries",
             .expected_type = KV_VALUE_INTEGER,
-            .write_to = &daemon_opts.max_entries,
+            .write_to = &store_opts.max_entries,
         },
         {
             .name = "max-item-bytes",

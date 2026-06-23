@@ -24,7 +24,6 @@
 struct daemon_opts daemon_opts = {
     .replace_clipboard_on_clear = true,
     .max_item_bytes = LLONG_MAX,
-    .max_entries = LLONG_MAX,
 };
 
 struct daemon_device_state {
@@ -301,7 +300,7 @@ static void read_fds(struct zzz_list *saved_items, struct zzz_list *mimes, int *
     if (!store_lock()
             || !read_index(&store_index)
             || !write_items(&store_index, saved_items)
-            || !trim_items(&store_index, daemon_opts.max_entries)) {
+            || !trim_items(&store_index)) {
         fputs("failed to write clip data to disk, aborting\n", stderr);
         exit(EXIT_FAILURE);
     }

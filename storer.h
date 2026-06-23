@@ -7,6 +7,12 @@
 
 #include "zzz_list.h"
 
+struct store_opts {
+    long long max_entries;
+};
+
+extern struct store_opts store_opts;
+
 struct clip_item {
     char *mime;
     char *data;
@@ -19,7 +25,7 @@ void store_unlock(void);
 void free_index(struct zzz_list *index);
 bool read_index(struct zzz_list *store_index);
 bool write_items(struct zzz_list *store_index, const struct zzz_list *clip_items);
-bool trim_items(struct zzz_list *store_index, long long max_entries_longlong);
+bool trim_items(struct zzz_list *store_index);
 bool delete_items(struct zzz_list *store_index, const char *set_label);
 FILE *open_clip_file(const char *label);
 char *read_mime(FILE *file);
