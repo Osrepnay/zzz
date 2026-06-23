@@ -3,22 +3,22 @@ CFLAGS=-O0 -Ibuild/include -Wall -Wextra -Wpedantic -std=c11 -g -fsanitize=addre
 
 .PHONY=run clean debug
 
-build: build/zzz
+build: build/zzzclip
 
 debug: CFLAGS += -O0 -g -fsanitize=address
 debug: build build/event-viewer
 
 run: build
-	build/zzz
+	build/zzzclip
 
 clean:
 	rm -r build/*
 
-build/event-viewer: build/zzz event_viewer.c
+build/event-viewer: build/zzzclip event_viewer.c
 	$(CC) $(CFLAGS) -lwayland-client -o build/event-viewer event_viewer.c build/*.o
 
-build/zzz: main.c build/wlr-data-control-protocol.o build/xmalloc.o build/zzz_list.o build/read_config.o build/parse_config.o build/selector.o build/store.o build/daemon.o build/getter.o build/lister.o build/registry.o
-	$(CC) $(CFLAGS) -lwayland-client -o build/zzz main.c build/*.o
+build/zzzclip: main.c build/wlr-data-control-protocol.o build/xmalloc.o build/zzz_list.o build/read_config.o build/parse_config.o build/selector.o build/store.o build/daemon.o build/getter.o build/lister.o build/registry.o
+	$(CC) $(CFLAGS) -lwayland-client -o build/zzzclip main.c build/*.o
 
 build/daemon.o: daemon.c daemon.h
 	$(CC) $(CFLAGS) -c -o build/daemon.o daemon.c
