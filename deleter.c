@@ -2,7 +2,7 @@
 
 #include "lister.h"
 #include "selector.h"
-#include "storer.h"
+#include "store.h"
 #include "zzz_list.h"
 
 void delete_with_selector(char *const *argv, int argc) {

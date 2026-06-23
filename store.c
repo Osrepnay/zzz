@@ -14,7 +14,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "storer.h"
+#include "store.h"
 #include "xmalloc.h"
 #include "zzz_list.h"
 

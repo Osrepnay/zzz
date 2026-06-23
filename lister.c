@@ -5,7 +5,7 @@
 #include <string.h>
 
 #include "lister.h"
-#include "storer.h"
+#include "store.h"
 #include "xmalloc.h"
 #include "zzz_list.h"
 

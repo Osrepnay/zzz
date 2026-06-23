@@ -8,7 +8,7 @@
 #include "lister.h"
 #include "read_config.h"
 #include "selector.h"
-#include "storer.h"
+#include "store.h"
 
 struct wl_display *display;
 

@@ -11,7 +11,7 @@
 #include "read_config.h"
 #include "registry.h"
 #include "selector.h"
-#include "storer.h"
+#include "store.h"
 #include "wlr-data-control-protocol.h"
 #include "xmalloc.h"
 #include "zzz_list.h"

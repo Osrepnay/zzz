@@ -16,7 +16,7 @@
 
 #include "daemon.h"
 #include "read_config.h"
-#include "storer.h"
+#include "store.h"
 #include "wlr-data-control-protocol.h"
 #include "xmalloc.h"
 #include "zzz_list.h"
