@@ -11,6 +11,9 @@
 #include "xmalloc.h"
 
 static char *config_path(void) {
+    char *config_path_env = getenv("ZZZCLIP_CONFIG_PATH");
+    if (config_path_env != NULL) return xstrdup(config_path_env);
+
     char *xdg_config_home = getenv("XDG_CONFIG_HOME");
     char *filename = "/zzzclip";
     if (xdg_config_home == NULL) {

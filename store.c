@@ -52,47 +52,53 @@ static void mkdirp(char *dir) {
     } while (dir[last_slash_idx++] != '\0');
 }
 
-static char *write_dir = NULL;
+static char *store_dir = NULL;
 static char *index_path;
 static char *tmp_index_template;
 // for locking purposes
 static int index_fd = -1;
 
 static void path_init(void) {
-    if (write_dir != NULL) free(write_dir);
+    if (store_dir != NULL) free(store_dir);
     if (index_path != NULL) free(index_path);
-    if (tmp_index_template != NULL) free(tmp_index_template);
-    char *basedir = getenv("XDG_STATE_HOME");
-    if (basedir == NULL) {
-        char *home = getenv("HOME");
-        if (home == NULL) {
-            fputs("no $HOME, aborting\n", stderr);
-            exit(EXIT_FAILURE);
+
+    char *store_dir_env = getenv("ZZZCLIP_STORE_PATH");
+    if (store_dir_env != NULL) {
+        store_dir = xstrdup(store_dir_env);
+    } else {
+        if (tmp_index_template != NULL) free(tmp_index_template);
+        char *basedir = getenv("XDG_STATE_HOME");
+        if (basedir == NULL) {
+            char *home = getenv("HOME");
+            if (home == NULL) {
+                fputs("no $HOME, aborting\n", stderr);
+                exit(EXIT_FAILURE);
+            }
+            char *state_dirname = "/.local/state";
+            basedir = xmalloc(strlen(home) + strlen(state_dirname) + 1);
+            basedir[0] = '\0';
+            strcat(basedir, home);
+            strcat(basedir, state_dirname);
         }
-        char *state_dirname = "/.local/state";
-        basedir = xmalloc(strlen(home) + strlen(state_dirname) + 1);
-        basedir[0] = '\0';
-        strcat(basedir, home);
-        strcat(basedir, state_dirname);
+        char *zzz_dirname = "/zzzclip";
+        store_dir = xmalloc(strlen(basedir) + strlen(zzz_dirname) + 1);
+        store_dir[0] = '\0';
+        strcat(store_dir, basedir);
+        strcat(store_dir, zzz_dirname);
     }
-    char *zzz_dirname = "/zzzclip";
-    write_dir = xmalloc(strlen(basedir) + strlen(zzz_dirname) + 1);
-    write_dir[0] = '\0';
-    strcat(write_dir, basedir);
-    strcat(write_dir, zzz_dirname);
-    mkdirp(write_dir);
+    mkdirp(store_dir);
 
     char *index_filename = "index";
-    index_path = xmalloc(strlen(write_dir) + 1 + strlen(index_filename) + 1);
+    index_path = xmalloc(strlen(store_dir) + 1 + strlen(index_filename) + 1);
     index_path[0] = '\0';
-    strcat(index_path, write_dir);
+    strcat(index_path, store_dir);
     strcat(index_path, "/");
     strcat(index_path, index_filename);
 
     char *template_filename = "indextmpXXXXXX";
-    tmp_index_template = xmalloc(strlen(write_dir) + 1 + strlen(template_filename) + 1);
+    tmp_index_template = xmalloc(strlen(store_dir) + 1 + strlen(template_filename) + 1);
     tmp_index_template[0] = '\0';
-    strcat(tmp_index_template, write_dir);
+    strcat(tmp_index_template, store_dir);
     strcat(tmp_index_template, "/");
     strcat(tmp_index_template, template_filename);
 }
@@ -104,7 +110,7 @@ void store_init(void) {
 
 // the index file acts as a lock for the whole directory
 bool store_lock(void) {
-    assert(write_dir != NULL);
+    assert(store_dir != NULL);
     index_fd = open(index_path, O_RDWR);
     if (index_fd == -1) return false;
     if (flock(index_fd, LOCK_EX) != 0) {
@@ -224,9 +230,9 @@ cleanup:
 }
 
 static char *path_from_label(const char *label) {
-    char *path = xmalloc(strlen(write_dir) + 1 + strlen(label) + 1);
+    char *path = xmalloc(strlen(store_dir) + 1 + strlen(label) + 1);
     path[0] = '\0';
-    strcat(path, write_dir);
+    strcat(path, store_dir);
     strcat(path, "/");
     strcat(path, label);
     return path;
