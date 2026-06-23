@@ -45,20 +45,16 @@ mime-pref = [
 
 ## todo (mostly for me)
 
-- user provided mimetype selection script
-- better error handling/cleanup
+- better error handling
 - support ext-data-control in addition to wlr-data-control
 - deduplicating
 - clean up init situation
-- cli getting/deleting
 - fix cli parsing and help
 - fallback if entry too large
 - human readable sizes
-- getting whole sets instead of single mime
-- multi-select support
 - make deleting play nice with daemon
 - FUSE
-- non-index support
+- non-index-selector support
 
 ## warning
 

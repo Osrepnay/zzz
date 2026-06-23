@@ -13,7 +13,8 @@
 struct wl_display *display;
 
 int main(int argc, char *argv[]) {
-    path_init();
+    // TODO allow -h and such even if the config or store are borked
+    store_init();
     struct config_assign assignments[] = {
         {
             .name = "max-entries",
@@ -93,18 +94,24 @@ int main(int argc, char *argv[]) {
         registry_state.dcm_callback = getter_dcm_callback;
         registry_state.callback_data = NULL;
     } else if (argc >= 2 && strcmp(argv[1], "list") == 0) {
-        if (fprint_listing(stdout, true)) {
+        struct zzz_list store_index;
+        if (!store_lock() || !read_index(&store_index)) {
+            fputs("failed to read index, aborting\n", stderr);
+            exit(EXIT_FAILURE);
+        }
+        if (fprint_listing(stdout, &store_index, true)) {
             exit(EXIT_SUCCESS);
         } else {
             exit(EXIT_FAILURE);
         }
     } else if (argc >= 2 && strcmp(argv[1], "delete") == 0) {
-        if (!read_index()) {
-            fputs("failed to read index file", stderr);
-            exit(EXIT_FAILURE);
-        }
         argc -= 2;
         argv += 2;
+        struct zzz_list store_index;
+        if (!store_lock() || !read_index(&store_index)) {
+            fputs("failed to read index, aborting\n", stderr);
+            exit(EXIT_FAILURE);
+        }
         // jesus....
         char del_label[1];
         char *del_label_ptr = del_label;
@@ -114,7 +121,7 @@ int main(int argc, char *argv[]) {
             argc--;
             argv++;
             struct zzz_list labels;
-            if (!select_labels_with_command(argv, argc, &labels)) {
+            if (!select_labels_with_command(&labels, &store_index, argv, argc)) {
                 exit(EXIT_FAILURE);
             }
             char *first = (char *)zzz_list_by_idx(&labels, 0);
@@ -126,7 +133,7 @@ int main(int argc, char *argv[]) {
         }
         bool fail = true;
         for (size_t i = 0; i < del_labels_len; i++) {
-            if (!delete_items(del_labels[i])) {
+            if (!delete_items(&store_index, del_labels[i])) {
                 fprintf(stderr, "failed to delete label %s\n", del_labels[i]);
             }
         }
@@ -152,8 +159,6 @@ int main(int argc, char *argv[]) {
             }
         }
     }
-
-    storer_init();
 
     struct wl_registry *registry = wl_display_get_registry(display);
     wl_registry_add_listener(registry, &registry_listener, &registry_state);

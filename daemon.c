@@ -297,13 +297,16 @@ static void read_fds(struct zzz_list *saved_items, struct zzz_list *mimes, int *
     free(pollfds);
     free(clip_items);
     free(data_capacities);
-    // non fatal in case user is doing something... weird
-    if (!write_items(saved_items)) {
-        fputs("failed to write clip data to disk\n", stderr);
+    struct zzz_list store_index;
+    if (!store_lock()
+            || !read_index(&store_index)
+            || !write_items(&store_index, saved_items)
+            || !trim_items(&store_index, daemon_opts.max_entries)) {
+        fputs("failed to write clip data to disk, aborting\n", stderr);
+        exit(EXIT_FAILURE);
     }
-    if (!trim_items(daemon_opts.max_entries)) {
-        fputs("failed to remove clip files\n", stderr);
-    }
+    free_index(&store_index);
+    store_unlock();
 }
 
 // clears offer from list of unassigned offers

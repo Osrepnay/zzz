@@ -13,16 +13,14 @@ struct clip_item {
     size_t len;
 };
 
-// the index is stored with recent at top
-// each entry is a list of labels
-extern struct zzz_list storer_index;
-
-void path_init(void);
-void storer_init(void);
-bool read_index(void);
-bool write_items(const struct zzz_list *clip_items);
-bool trim_items(long long max_entries_longlong);
-bool delete_items(const char *set_label);
+void store_init(void);
+bool store_lock(void);
+void store_unlock(void);
+void free_index(struct zzz_list *index);
+bool read_index(struct zzz_list *store_index);
+bool write_items(struct zzz_list *store_index, const struct zzz_list *clip_items);
+bool trim_items(struct zzz_list *store_index, long long max_entries_longlong);
+bool delete_items(struct zzz_list *store_index, const char *set_label);
 FILE *open_clip_file(const char *label);
 char *read_mime(FILE *file);
 bool file_remaining_bytes(FILE *file, size_t *bytes);

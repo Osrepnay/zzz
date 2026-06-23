@@ -106,13 +106,8 @@ bool fprint_line(FILE *f, const struct zzz_list *filenames, bool print_label) {
     return success;
 }
 
-bool fprint_listing(FILE *f, bool print_label) {
-    path_init();
-    if (!read_index()) {
-        fputs("failed to read index file", stderr);
-        return false;
-    }
-    ZZZ_LIST_FOREACH(storer_index, index_node) {
+bool fprint_listing(FILE *f, const struct zzz_list *store_index, bool print_label) {
+    ZZZ_LIST_FOREACH(*store_index, index_node) {
         if (!fprint_line(f, index_node->value, print_label)) {
             return false;
         }

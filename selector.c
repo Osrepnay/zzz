@@ -8,7 +8,6 @@
 #include <unistd.h>
 
 #include "lister.h"
-#include "storer.h"
 #include "xmalloc.h"
 #include "zzz_list.h"
 
@@ -22,7 +21,7 @@ static bool parse_long(const char *str, long *res) {
     return true;
 }
 
-bool select_labels_with_command(char *const *argv, int argc, struct zzz_list *labels) {
+bool select_labels_with_command(struct zzz_list *labels, const struct zzz_list *store_index, char *const *argv, int argc) {
     int stdin_fds[2];
     int stdout_fds[2];
     if (pipe(stdin_fds) == -1 || pipe(stdout_fds) == -1) {
@@ -64,7 +63,7 @@ bool select_labels_with_command(char *const *argv, int argc, struct zzz_list *la
         close(stdout_fds[1]);
         FILE *file = fdopen(stdin_fds[1], "w");
         signal(SIGPIPE, SIG_IGN);
-        if (!fprint_listing(file, false)) {
+        if (!fprint_listing(file, store_index, false)) {
             failed = true;
         }
         signal(SIGPIPE, SIG_DFL);
@@ -99,7 +98,7 @@ bool select_labels_with_command(char *const *argv, int argc, struct zzz_list *la
             failed = true;
             break;
         }
-        *labels = *(struct zzz_list *)zzz_list_by_idx(&storer_index, idx);
+        *labels = *(struct zzz_list *)zzz_list_by_idx(store_index, idx);
         break;
     }
     return !failed;

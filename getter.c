@@ -70,20 +70,25 @@ static void handle_labels(struct wl_objs *wl_objs, const struct zzz_list *labels
 }
 
 static void handle_command(struct wl_objs *wl_objs)  {
+    struct zzz_list store_index;
+    if (!store_lock() || !read_index(&store_index)) {
+        fputs("failed to read index, aborting\n", stderr);
+        exit(EXIT_FAILURE);
+    }
     struct zzz_list labels;
     if (!select_labels_with_command(
+        &labels,
+        &store_index,
         getter_opts.args.command.parts,
-        getter_opts.args.command.len,
-        &labels
+        getter_opts.args.command.len
     )) exit(EXIT_FAILURE);
     handle_labels(wl_objs, &labels);
+    free_index(&store_index);
+    store_unlock();
 }
 
 void getter_dcm_callback(void *data, struct wl_objs *wl_objs) {
     (void) data;
-    path_init();
-    read_index();
-
     switch (getter_opts.mode) {
     case GETTER_MODE_COMMAND:
         handle_command(wl_objs);

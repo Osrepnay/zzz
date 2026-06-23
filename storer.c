@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -20,8 +21,6 @@
 #define FILENAME_CHARS 8
 #define STRINGIFY(a) STRINGIFY_VALUE(a)
 #define STRINGIFY_VALUE(a) #a
-
-struct zzz_list storer_index;
 
 void free_clip_item_void(void *clip_item_void) {
     struct clip_item *clip_item = clip_item_void;
@@ -49,9 +48,11 @@ static void mkdirp(char *dir) {
     } while (dir[last_slash_idx++] != '\0');
 }
 
-static char *write_dir;
+static char *write_dir = NULL;
 static char *index_path;
 static char *tmp_index_template;
+// for locking purposes
+static int index_fd = -1;
 
 void path_init(void) {
     if (write_dir != NULL) free(write_dir);
@@ -92,15 +93,40 @@ void path_init(void) {
     strcat(tmp_index_template, template_filename);
 }
 
-// wrapper around zzz_list_free
-static void zzz_list_free_void(void *list) {
+void store_init(void) {
+    srand(time(NULL));
+    path_init();
+}
+
+// the index file acts as a lock for the whole directory
+bool store_lock(void) {
+    assert(write_dir != NULL);
+    index_fd = open(index_path, O_RDWR);
+    if (index_fd == -1) return false;
+    if (flock(index_fd, LOCK_EX) != 0) {
+        close(index_fd);
+        index_fd = -1;
+        return false;
+    }
+    return true;
+}
+
+void store_unlock(void) {
+    close(index_fd);
+    index_fd = -1;
+}
+
+static void free_index_row(void *list) {
     zzz_list_free((struct zzz_list *)list, free);
     free(list);
 }
 
-bool read_index(void) {
-    zzz_list_free(&storer_index, zzz_list_free_void);
-    storer_index = zzz_list_empty;
+void free_index(struct zzz_list *index) {
+    zzz_list_free(index, free_index_row);
+}
+
+bool read_index(struct zzz_list *store_index) {
+    struct zzz_list index = zzz_list_empty;
 
     FILE *index_file = fopen(index_path, "r");
     // return true because empty file, empty index
@@ -130,7 +156,7 @@ bool read_index(void) {
             default:
                 if (label_len >= FILENAME_CHARS) {
                     // label is too long, assume config file is corrupt
-                    zzz_list_free(&storer_index, zzz_list_free_void);
+                    zzz_list_free(&index, free_index_row);
                     fclose(index_file);
                     return false;
                 } else {
@@ -149,7 +175,7 @@ bool read_index(void) {
         if (set_ended && curr_set.len > 0) {
             struct zzz_list *curr_set_alloc = xmalloc(sizeof(*curr_set_alloc));
             *curr_set_alloc = curr_set;
-            zzz_list_append(&storer_index, curr_set_alloc);
+            zzz_list_append(&index, curr_set_alloc);
             curr_set = zzz_list_empty;
         }
         if (file_ended) {
@@ -157,10 +183,11 @@ bool read_index(void) {
         }
     }
     fclose(index_file);
+    *store_index = index;
     return true;
 }
 
-bool write_index(void) {
+static bool write_index(const struct zzz_list *store_index) {
     bool success = false;
     char *tmp_path = xstrdup(tmp_index_template);
     int tmp_index_fd = mkstemp(tmp_path);
@@ -171,7 +198,7 @@ bool write_index(void) {
     // love buffering
     FILE *tmp_index = fdopen(tmp_index_fd, "w");
     if (tmp_index == NULL) goto cleanup;
-    ZZZ_LIST_FOREACH(storer_index, curr_index) {
+    ZZZ_LIST_FOREACH(*store_index, curr_index) {
         struct zzz_list *label_list = curr_index->value;
         ZZZ_LIST_FOREACH(*label_list, curr_label_list) {
             char *label = curr_label_list->value;
@@ -190,15 +217,6 @@ cleanup:
     }
     free(tmp_path);
     return success;
-}
-
-void storer_init(void) {
-    srand(time(NULL));
-    path_init();
-    if (!read_index()) {
-        fputs("failed to read index, aborting\n", stderr);
-        exit(EXIT_FAILURE);
-    }
 }
 
 static char *path_from_label(const char *label) {
@@ -220,18 +238,18 @@ static bool delete_single_label(const char *label) {
     return success;
 }
 
-bool trim_items(long long max_entries_longlong) {
+bool trim_items(struct zzz_list *store_index, long long max_entries_longlong) {
     size_t max_entries = max_entries_longlong;
     if (max_entries_longlong < 0) {
         max_entries = 0;
     }
 
-    if (storer_index.len <= max_entries) return true;
+    if (store_index->len <= max_entries) return true;
 
     // first node to be removed
     struct zzz_list_node *drop_start = NULL;
     size_t i = 0;
-    ZZZ_LIST_FOREACH(storer_index, index_node) {
+    ZZZ_LIST_FOREACH(*store_index, index_node) {
         if (i == max_entries) {
             drop_start = index_node;
             break;
@@ -240,21 +258,21 @@ bool trim_items(long long max_entries_longlong) {
     }
     // sublist of this + next entries to free later
     struct zzz_list to_drop = (struct zzz_list) {
-        .len = storer_index.len - max_entries,
+        .len = store_index->len - max_entries,
         .head = drop_start,
-        .last = storer_index.last,
+        .last = store_index->last,
     };
-    if (drop_start == storer_index.head) {
-        storer_index.head = NULL;
-        storer_index.last = NULL;
+    if (drop_start == store_index->head) {
+        store_index->head = NULL;
+        store_index->last = NULL;
     } else {
-        storer_index.last = drop_start->prev;
-        storer_index.last->next = NULL;
+        store_index->last = drop_start->prev;
+        store_index->last->next = NULL;
         drop_start->prev = NULL;
     }
-    storer_index.len = max_entries;
+    store_index->len = max_entries;
 
-    if (!write_index()) return false;
+    if (!write_index(store_index)) return false;
 
     bool success = true;
     ZZZ_LIST_FOREACH(to_drop, drop_node) {
@@ -262,11 +280,11 @@ bool trim_items(long long max_entries_longlong) {
             success &= delete_single_label(label_node->value);
         }
     }
-    zzz_list_free(&to_drop, zzz_list_free_void);
+    zzz_list_free(&to_drop, free_index_row);
     return success;
 }
 
-bool write_items(const struct zzz_list *clip_items) {
+bool write_items(struct zzz_list *store_index, const struct zzz_list *clip_items) {
     // it won't actually break if it doesn't return (i think)
     // but the index reader will just skip empty sets of items
     // so this'll make sure reading from the file results in the same index
@@ -308,19 +326,19 @@ bool write_items(const struct zzz_list *clip_items) {
     }
     struct zzz_list *labels_alloc = xmalloc(sizeof(*labels_alloc));
     *labels_alloc = labels;
-    zzz_list_prepend(&storer_index, labels_alloc);
-    return write_index();
+    zzz_list_prepend(store_index, labels_alloc);
+    return write_index(store_index);
 }
 
 // deletes a set of items using the label of the first
-bool delete_items(const char *set_label) {
-    ZZZ_LIST_FOREACH(storer_index, index_node) {
+bool delete_items(struct zzz_list *store_index, const char *set_label) {
+    ZZZ_LIST_FOREACH(*store_index, index_node) {
         struct zzz_list *items = index_node->value;
         if (items->len <= 0) continue;
         char *first = zzz_list_by_idx(items, 0);
         if (strcmp(first, set_label) != 0) continue;
-        zzz_list_remove_node(&storer_index, index_node);
-        bool success = write_index();
+        zzz_list_remove_node(store_index, index_node);
+        bool success = write_index(store_index);
         ZZZ_LIST_FOREACH(*items, items_node) {
             success &= delete_single_label(items_node->value);
         }
