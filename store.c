@@ -111,7 +111,7 @@ void store_init(void) {
 // the index file acts as a lock for the whole directory
 bool store_lock(void) {
     assert(store_dir != NULL);
-    index_fd = open(index_path, O_RDWR);
+    index_fd = open(index_path, O_RDWR | O_CREAT);
     if (index_fd == -1) return false;
     if (flock(index_fd, LOCK_EX) != 0) {
         close(index_fd);
