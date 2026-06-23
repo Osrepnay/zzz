@@ -36,6 +36,7 @@ static void source_send(void *data, struct zwlr_data_control_source_v1 *source, 
 static void source_cancelled(void *data, struct zwlr_data_control_source_v1 *source) {
     struct zzz_list *items = data;
     zzz_list_free(items, free_clip_item_void);
+    free(items);
     zwlr_data_control_source_v1_destroy(source);
     // TODO better cleanup?
     exit(EXIT_SUCCESS);
