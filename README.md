@@ -52,9 +52,9 @@ mime-pref = [
 - fix cli parsing and help
 - fallback if entry too large
 - human readable sizes
-- make deleting play nice with daemon
 - FUSE
 - non-index-selector support
+- handle exec failure properly
 
 ## warning
 

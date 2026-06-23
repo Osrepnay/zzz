@@ -54,7 +54,7 @@ static char *tmp_index_template;
 // for locking purposes
 static int index_fd = -1;
 
-void path_init(void) {
+static void path_init(void) {
     if (write_dir != NULL) free(write_dir);
     if (index_path != NULL) free(index_path);
     if (tmp_index_template != NULL) free(tmp_index_template);
