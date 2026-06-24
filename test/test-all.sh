@@ -5,7 +5,11 @@ if pgrep --quiet zzzclip; then
     echo "if the other instance is attached to a different WAYLAND_DISPLAY, you may ignore this warning." 1>&2
 fi
 
-tests="persist.sh max-bytes.sh max-entries.sh"
+if [ -z "$TESTS" ]; then
+    tests="persist.sh max-bytes.sh max-entries.sh"
+else
+    tests="$TESTS"
+fi
 
 for test_name in $tests; do
     if test/"$test_name"; then
