@@ -1,0 +1,9 @@
+# artificially low for testing
+max-entries = 5
+max-item-bytes = 1000
+max-preview = 1000
+replace-clipboard-on-clear = true
+mime-pref = [
+    (image/png image/webp image/jpeg image/.*)
+    (UTF8_STRING text/plain;charset=utf-8 TEXT text/plain text/.*)
+]
