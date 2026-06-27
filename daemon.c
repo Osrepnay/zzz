@@ -68,7 +68,7 @@ static void source_cancelled(void *data, void *source) {
     struct zzz_list *items = data;
     zzz_list_free(items, free_clip_item_void);
     free(items);
-    data_control.manager_destroy(source);
+    data_control.source_destroy(source);
 }
 
 static struct source_listener source_listener = {
