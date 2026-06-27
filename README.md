@@ -48,7 +48,6 @@ mime-pref = [
 - deduplicating
 - fix cli parsing and help
 - fallback if entry too large (?)
-- human readable sizes
 - FUSE
 - non-index-selector support
 

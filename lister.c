@@ -29,7 +29,20 @@ static bool fprint_textual(FILE *f, const char *data, size_t len) {
 }
 
 static bool fprint_binary(FILE *f, char *mime, size_t len) {
-    return fprintf(f, "%s, %zu bytes\n", mime, len) >= 0;
+    bool status = fprintf(f, "%s, ", mime) >= 0;
+    const size_t gb = 1e9;
+    const size_t mb = 1e6;
+    const size_t kb = 1e3;
+    if (len >= gb) {
+        status &= fprintf(f, "%.3G GB\n", (double) len / gb) >= 0;
+    } else if (len >= mb) {
+        status &= fprintf(f, "%.3G MB\n", (double) len / mb) >= 0;
+    } else if (len >= kb) {
+        status &= fprintf(f, "%.3G KB\n", (double) len / kb) >= 0;
+    } else {
+        status &= fprintf(f, "%zu bytes\n", len) >= 0;
+    }
+    return status;
 }
 
 bool fprint_line(FILE *f, const struct zzz_list *filenames, bool print_label) {
