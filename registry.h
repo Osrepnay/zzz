@@ -8,9 +8,9 @@ struct wl_objs {
     struct wl_display *display;
     struct wl_seat *seat;
     uint32_t seat_name;
-    struct zwlr_data_control_manager_v1 *data_control_manager;
-    uint32_t data_control_manager_name;
-    struct zwlr_data_control_device_v1 *device;
+    void *manager;
+    uint32_t manager_name;
+    void *device;
 };
 
 struct registry_state {

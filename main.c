@@ -50,11 +50,8 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    struct registry_state registry_state = (struct registry_state) {
-        .wl_objs = (struct wl_objs) {
-            .display = display,
-        },
-    };
+    struct registry_state registry_state = {0};
+    registry_state.wl_objs.display = display;
 
     char *help =
         "usage: zzz [options]\n"

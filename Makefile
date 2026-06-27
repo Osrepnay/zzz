@@ -14,11 +14,14 @@ debug: build
 clean:
 	rm -r build/*
 
-build/zzzclip: main.c build/wlr-data-control-protocol.o build/xmalloc.o build/zzz_list.o build/read_config.o build/parse_config.o build/selector.o build/store.o build/daemon.o build/getter.o build/lister.o build/registry.o
+build/zzzclip: main.c build/ext-data-control-protocol.o build/wlr-data-control-protocol.o build/xmalloc.o build/zzz_list.o build/read_config.o build/parse_config.o build/selector.o build/store.o build/data_control_wrapper.o build/daemon.o build/getter.o build/lister.o build/registry.o
 	$(CC) $(CFLAGS) -lwayland-client -o build/zzzclip main.c build/*.o
 
 build/daemon.o: daemon.c daemon.h
 	$(CC) $(CFLAGS) -c -o build/daemon.o daemon.c
+
+build/data_control_wrapper.o: data_control_wrapper.c data_control_wrapper.h
+	$(CC) $(CFLAGS) -c -o build/data_control_wrapper.o data_control_wrapper.c
 
 build/getter.o: getter.c getter.h
 	$(CC) $(CFLAGS) -c -o build/getter.o getter.c
@@ -50,9 +53,19 @@ build/zzz_list.o: zzz_list.c zzz_list.h
 build/wlr-data-control-protocol.o: build/wlr-data-control-protocol.c
 	$(CC) $(CFLAGS) -c -o build/wlr-data-control-protocol.o build/wlr-data-control-protocol.c
 
+build/ext-data-control-protocol.o: build/ext-data-control-protocol.c
+	$(CC) $(CFLAGS) -c -o build/ext-data-control-protocol.o build/ext-data-control-protocol.c
+
 build/wlr-data-control-protocol.c: build/include/wlr-data-control-protocol.h protocols/wlr-data-control-unstable-v1.xml
 	wayland-scanner private-code < protocols/wlr-data-control-unstable-v1.xml > build/wlr-data-control-protocol.c
+
+build/ext-data-control-protocol.c: build/include/ext-data-control-protocol.h protocols/ext-data-control-v1.xml
+	wayland-scanner private-code < protocols/ext-data-control-v1.xml > build/ext-data-control-protocol.c
 
 build/include/wlr-data-control-protocol.h: protocols/wlr-data-control-unstable-v1.xml
 	mkdir -p build/include
 	wayland-scanner client-header < protocols/wlr-data-control-unstable-v1.xml > build/include/wlr-data-control-protocol.h
+
+build/include/ext-data-control-protocol.h: protocols/ext-data-control-v1.xml
+	mkdir -p build/include
+	wayland-scanner client-header < protocols/ext-data-control-v1.xml > build/include/ext-data-control-protocol.h

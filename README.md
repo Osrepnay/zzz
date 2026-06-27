@@ -40,17 +40,14 @@ mime-pref = [
 ## dependencies
 
 - wayland client libraries (dev?)
-- libpcre2
 - a compositor that supports the wlr-data-control protocol
 
 ## todo (mostly for me)
 
 - better error handling
-- support ext-data-control in addition to wlr-data-control
 - deduplicating
-- clean up init situation
 - fix cli parsing and help
-- fallback if entry too large
+- fallback if entry too large (?)
 - human readable sizes
 - FUSE
 - non-index-selector support

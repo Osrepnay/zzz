@@ -6,19 +6,19 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "data_control_wrapper.h"
 #include "lister.h"
 #include "getter.h"
 #include "read_config.h"
 #include "registry.h"
 #include "selector.h"
 #include "store.h"
-#include "wlr-data-control-protocol.h"
 #include "xmalloc.h"
 #include "zzz_list.h"
 
 struct getter_opts getter_opts;
 
-static void source_send(void *data, struct zwlr_data_control_source_v1 *source, const char *mime_type, int32_t fd) {
+static void source_send(void *data, void *source, const char *mime_type, int32_t fd) {
     (void) source;
     (void) mime_type;
     ZZZ_LIST_FOREACH(*(struct zzz_list *)data, item_list) {
@@ -33,16 +33,16 @@ static void source_send(void *data, struct zwlr_data_control_source_v1 *source, 
     close(fd);
 }
 
-static void source_cancelled(void *data, struct zwlr_data_control_source_v1 *source) {
+static void source_cancelled(void *data, void *source) {
     struct zzz_list *items = data;
     zzz_list_free(items, free_clip_item_void);
     free(items);
-    zwlr_data_control_source_v1_destroy(source);
+    data_control.source_destroy(source);
     // TODO better cleanup?
     exit(EXIT_SUCCESS);
 }
 
-static struct zwlr_data_control_source_v1_listener source_listener = {
+static struct source_listener source_listener = {
     .send = &source_send,
     .cancelled = &source_cancelled
 };
@@ -59,15 +59,14 @@ static void handle_labels(struct wl_objs *wl_objs, const struct zzz_list *labels
         }
         zzz_list_append(clip_items, clip_item);
     }
-    struct zwlr_data_control_source_v1 *source =
-        zwlr_data_control_manager_v1_create_data_source(wl_objs->data_control_manager);
+    void *source = data_control.manager_create_data_source(wl_objs->manager);
     ZZZ_LIST_FOREACH(*clip_items, clip_item_node) {
         struct clip_item *clip_item = clip_item_node->value;
-        zwlr_data_control_source_v1_offer(source, clip_item->mime);
+        data_control.source_offer(source, clip_item->mime);
     }
-    zwlr_data_control_source_v1_offer(source, INTERNAL_MIME);
-    zwlr_data_control_source_v1_add_listener(source, &source_listener, clip_items);
-    zwlr_data_control_device_v1_set_selection(wl_objs->device, source);
+    data_control.source_offer(source, INTERNAL_MIME);
+    data_control.source_add_listener(source, &source_listener, clip_items);
+    data_control.device_set_selection(wl_objs->device, source);
 }
 
 static void handle_command(struct wl_objs *wl_objs)  {
