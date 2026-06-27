@@ -10,7 +10,7 @@
 #include "zzz_list.h"
 
 struct lister_opts lister_opts = {
-    .max_preview = LLONG_MAX,
+    .max_preview = 1000,
 };
 
 static bool fprint_textual(FILE *f, const char *data, size_t len) {
