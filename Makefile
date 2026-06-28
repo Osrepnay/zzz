@@ -15,7 +15,7 @@ clean:
 	rm -r build/*
 
 build/zzzclip: main.c build/ext-data-control-protocol.o build/wlr-data-control-protocol.o build/xmalloc.o build/zzz_list.o build/read_config.o build/parse_config.o build/store.o build/data_control_wrapper.o build/daemon.o build/getter.o build/lister.o build/registry.o
-	$(CC) $(CFLAGS) -lwayland-client -o build/zzzclip main.c build/*.o
+	$(CC) $(CFLAGS) -lwayland-client -lm -o build/zzzclip main.c build/*.o
 
 build/daemon.o: daemon.c daemon.h
 	$(CC) $(CFLAGS) -c -o build/daemon.o daemon.c
