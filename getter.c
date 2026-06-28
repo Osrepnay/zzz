@@ -47,17 +47,11 @@ static struct source_listener source_listener = {
     .cancelled = &source_cancelled
 };
 
-static void handle_labels(struct wl_objs *wl_objs, const struct zzz_list *labels) {
+static void handle_label(struct wl_objs *wl_objs, const struct zzz_list *store_index, const char *set_label) {
     struct zzz_list *clip_items = xmalloc(sizeof(*clip_items));
-    *clip_items = zzz_list_empty;
-    ZZZ_LIST_FOREACH(*labels, filename_node) {
-        char *filename = filename_node->value;
-        struct clip_item *clip_item = xmalloc(sizeof(*clip_item));
-        if (!read_item(filename, clip_item)) {
-            fprintf(stderr, "error reading file %s, aborting\n", filename);
-            exit(EXIT_FAILURE);
-        }
-        zzz_list_append(clip_items, clip_item);
+    if (!read_items(clip_items, store_index, set_label)) {
+        fprintf(stderr, "error reading label %s, aborting\n", set_label);
+        exit(EXIT_FAILURE);
     }
     void *source = data_control.manager_create_data_source(wl_objs->manager);
     ZZZ_LIST_FOREACH(*clip_items, clip_item_node) {
@@ -69,32 +63,33 @@ static void handle_labels(struct wl_objs *wl_objs, const struct zzz_list *labels
     data_control.device_set_selection(wl_objs->device, source);
 }
 
-static void handle_command(struct wl_objs *wl_objs)  {
+static void handle_command(struct wl_objs *wl_objs, const struct zzz_list *store_index)  {
+    char *set_label = select_set_label_with_command(
+        store_index,
+        getter_opts.args.command.parts,
+        getter_opts.args.command.len
+    );
+    if (set_label == NULL) {
+        exit(EXIT_FAILURE);
+    }
+    handle_label(wl_objs, store_index, set_label);
+}
+
+void getter_manager_callback(void *data, struct wl_objs *wl_objs) {
+    (void) data;
     struct zzz_list store_index;
     if (!store_lock() || !read_index(&store_index)) {
         fputs("failed to read index, aborting\n", stderr);
         exit(EXIT_FAILURE);
     }
-    struct zzz_list labels;
-    if (!select_labels_with_command(
-        &labels,
-        &store_index,
-        getter_opts.args.command.parts,
-        getter_opts.args.command.len
-    )) exit(EXIT_FAILURE);
-    handle_labels(wl_objs, &labels);
-    free_index(&store_index);
-    store_unlock();
-}
-
-void getter_dcm_callback(void *data, struct wl_objs *wl_objs) {
-    (void) data;
     switch (getter_opts.mode) {
     case GETTER_MODE_COMMAND:
-        handle_command(wl_objs);
+        handle_command(wl_objs, &store_index);
         break;
-    case GETTER_MODE_LABELS:
-        handle_labels(wl_objs, &getter_opts.args.labels);
+    case GETTER_MODE_LABEL:
+        handle_label(wl_objs, &store_index, getter_opts.args.label);
         break;
     }
+    free_index(&store_index);
+    store_unlock();
 }

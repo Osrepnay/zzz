@@ -22,28 +22,25 @@ static bool parse_long(const char *str, long *res) {
     return true;
 }
 
-bool select_labels_with_command(struct zzz_list *labels, const struct zzz_list *store_index, char *const *argv, int argc) {
+char *select_set_label_with_command(const struct zzz_list *store_index, char *const *argv, int argc) {
     int stdin_fds[2];
     int stdout_fds[2];
     // detecting error in the exec
     int error_fds[2];
-    bool failed = false;
     char *err_str;
 
     if (pipe(stdin_fds) == -1
             || pipe(stdout_fds) == -1
             || pipe(error_fds) == -1
             || fcntl(error_fds[1], F_SETFD, fcntl(error_fds[1], F_GETFD) | FD_CLOEXEC)) {
-        failed = true;
         err_str = strerror(errno);
-        goto end;
+        goto failed;
     }
 
     pid_t pid = fork();
     switch (pid) {
     case -1:
         err_str = strerror(errno);
-        failed = true;
         close(stdin_fds[0]);
         close(stdin_fds[1]);
         close(stdout_fds[0]);
@@ -51,10 +48,11 @@ bool select_labels_with_command(struct zzz_list *labels, const struct zzz_list *
         close(error_fds[0]);
         close(error_fds[1]);
         break;
-    case 0:
+    case 0: {
         close(stdin_fds[1]);
         close(stdout_fds[0]);
         close(error_fds[0]);
+        bool failed = false;
         if (dup2(stdin_fds[0], STDIN_FILENO) == -1
                 || dup2(stdout_fds[1], STDOUT_FILENO) == -1) {
             err_str = strerror(errno);
@@ -75,7 +73,8 @@ bool select_labels_with_command(struct zzz_list *labels, const struct zzz_list *
         close(error_fds[1]);
         exit(EXIT_FAILURE);
         break;
-    default:;
+    }
+    default: {
         close(stdin_fds[0]);
         close(stdout_fds[1]);
         close(error_fds[1]);
@@ -89,7 +88,6 @@ bool select_labels_with_command(struct zzz_list *labels, const struct zzz_list *
         }
         close(error_fds[0]);
         if (bytes_read == sizeof(other_errno)) {
-            failed = true;
             err_str = strerror(other_errno);
             close(stdin_fds[1]);
             close(stdout_fds[0]);
@@ -98,6 +96,7 @@ bool select_labels_with_command(struct zzz_list *labels, const struct zzz_list *
 
         FILE *stdin_file = fdopen(stdin_fds[1], "w");
         signal(SIGPIPE, SIG_IGN);
+        bool failed = false;
         if (!fprint_listing(stdin_file, store_index, false)) {
             failed = true;
             err_str = "failed to send data to selector";
@@ -116,29 +115,28 @@ bool select_labels_with_command(struct zzz_list *labels, const struct zzz_list *
         }
         close(stdout_fds[0]);
         if (read_ct < 0) {
-            failed = true;
             err_str = strerror(errno);
             break;
         }
         numbuf[numbuf_len] = '\0';
 
         if (numbuf_len == 0) {
-            failed = true;
             err_str = "nothing selected";
             break;
         }
         long idx;
         if (!parse_long(numbuf, &idx)) {
-            failed = true;
             err_str = "failed when reading from selector program, is it configured to print the index?";
             break;
         }
-        *labels = *(struct zzz_list *)zzz_list_by_idx(store_index, idx);
-        break;
+        if (idx < 0 || (size_t)idx >= store_index->len) {
+            err_str = "index out of bounds";
+            break;
+        }
+        return zzz_list_by_idx(zzz_list_by_idx(store_index, idx), 0);
     }
-end:
-    if (failed) {
-        fprintf(stderr, "selector failed: %s\n", err_str);
     }
-    return !failed;
+failed:
+    fprintf(stderr, "selector failed: %s\n", err_str);
+    return NULL;
 }

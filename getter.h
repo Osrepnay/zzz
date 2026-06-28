@@ -1,14 +1,13 @@
 #include "registry.h"
-#include "zzz_list.h"
 
 struct getter_opts {
     enum {
-        GETTER_MODE_LABELS, GETTER_MODE_COMMAND
+        GETTER_MODE_LABEL, GETTER_MODE_COMMAND
     } mode;
     union {
-        struct zzz_list labels;
+        const char *label;
         struct {
-            char **parts;
+            char *const *parts;
             size_t len;
         } command;
     } args;
@@ -16,4 +15,4 @@ struct getter_opts {
 
 extern struct getter_opts getter_opts;
 
-void getter_dcm_callback(void *data, struct wl_objs *wl_objs);
+void getter_manager_callback(void *data, struct wl_objs *wl_objs);

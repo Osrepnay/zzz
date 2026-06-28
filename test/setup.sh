@@ -4,7 +4,7 @@ export ZZZCLIP_CONFIG_PATH=test/test-config
 
 # make sure there's no dangling copies
 wl-copy -c
-build/zzzclip &
+build/zzzclip daemon &
 zzzclip_pid=$!
 sleep 0.1
 trap 'exit_status=$?; kill $zzzclip_pid; rm -rf test/store; exit $exit_status' EXIT

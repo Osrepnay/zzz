@@ -27,7 +27,7 @@ static void registry_global(void *data, struct wl_registry *registry, uint32_t n
             && state->wl_objs.manager != NULL) {
         state->wl_objs.device = data_control.manager_get_data_device(state->wl_objs.manager, state->wl_objs.seat);
 
-        state->dcm_callback(state->callback_data, &state->wl_objs);
+        state->manager_callback(state->callback_data, &state->wl_objs);
     }
 }
 

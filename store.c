@@ -398,35 +398,56 @@ bool file_remaining_bytes(FILE *file, size_t *bytes) {
     return true;
 }
 
-bool read_item(const char *label, struct clip_item *res) {
-    bool success = false;
+bool read_items(struct zzz_list *clip_items, const struct zzz_list *store_index, const char *set_label) {
+    struct zzz_list *labels = NULL;
+    ZZZ_LIST_FOREACH(*store_index, index_node) {
+        struct zzz_list *items = index_node->value;
+        if (items->len <= 0) continue;
+        char *first = zzz_list_by_idx(items, 0);
+        if (strcmp(first, set_label) == 0) {
+            labels = items;
+            break;
+        }
+    }
+    if (labels == NULL) return false;
 
-    FILE *file = open_clip_file(label);
-    if (file == NULL) {
-        return false;
-    }
-    
-    char *mime = read_mime(file);
-    if (mime == NULL) goto cleanup;
-    size_t len;
-    if (!file_remaining_bytes(file, &len)) {
-        free(mime);
-        goto cleanup;
-    }
-    char *data = xmalloc(len);
-    if (fread(data, 1, len, file) != len) {
-        free(mime);
-        free(data);
-        goto cleanup;
-    }
-    *res = (struct clip_item) {
-        .mime = mime,
-        .data = data,
-        .len = len,
-    };
-    success = true;
+    struct zzz_list items = zzz_list_empty;
+    ZZZ_LIST_FOREACH(*labels, label_node) {
+        char *mime = NULL;
+        char *data = NULL;
+        FILE *file = open_clip_file(label_node->value);
+
+        if (file == NULL) {
+            return false;
+        }
+        
+        mime = read_mime(file);
+        if (mime == NULL) goto cleanup;
+
+        size_t len;
+        if (!file_remaining_bytes(file, &len)) goto cleanup;
+        data = xmalloc(len);
+        if (fread(data, 1, len, file) != len) goto cleanup;
+
+        struct clip_item *item = xmalloc(sizeof(*item));
+        *item = (struct clip_item) {
+            .mime = mime,
+            .data = data,
+            .len = len,
+        };
+        zzz_list_append(&items, item);
+        fclose(file);
+        continue;
 
 cleanup:
-    fclose(file);
-    return success;
+        free(mime);
+        free(data);
+        zzz_list_free(&items, free_clip_item_void);
+        if (file != NULL) {
+            fclose(file);
+        }
+        return false;
+    }
+    *clip_items = items;
+    return true;
 }

@@ -456,7 +456,7 @@ static struct device_listener device_listener = {
     .finished = &device_finished,
 };
 
-void daemon_dcm_callback(void *data, struct wl_objs *wl_objs) {
+void daemon_manager_callback(void *data, struct wl_objs *wl_objs) {
     (void) data;
     struct daemon_device_state *state = xmalloc(sizeof(*state));
     *state = (struct daemon_device_state) {

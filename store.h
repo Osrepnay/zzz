@@ -30,7 +30,7 @@ bool delete_items(struct zzz_list *store_index, const char *set_label);
 FILE *open_clip_file(const char *label);
 char *read_mime(FILE *file);
 bool file_remaining_bytes(FILE *file, size_t *bytes);
-bool read_item(const char *label, struct clip_item *res);
+bool read_items(struct zzz_list *clip_items, const struct zzz_list *store_index, const char *set_label);
 void free_clip_item_void(void *clip_item_void);
 
 #endif

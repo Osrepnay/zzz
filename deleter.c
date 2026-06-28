@@ -11,13 +11,12 @@ void delete_with_selector(char *const *argv, int argc) {
         fputs("failed to read index, aborting\n", stderr);
         exit(EXIT_FAILURE);
     }
-    struct zzz_list labels;
-    if (!select_labels_with_command(&labels, &store_index, argv, argc)) {
+    char *set_label = select_set_label_with_command(&store_index, argv, argc);
+    if (set_label == NULL) {
         exit(EXIT_FAILURE);
     }
-    char *label = zzz_list_by_idx(&labels, 0);
-    if (!delete_items(&store_index, label)) {
-        fprintf(stderr, "failed to delete label %s\n", label);
+    if (!delete_items(&store_index, set_label)) {
+        fprintf(stderr, "failed to delete label %s\n", set_label);
         exit(EXIT_FAILURE);
     }
     free_index(&store_index);
