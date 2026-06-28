@@ -11,12 +11,9 @@
 #include "getter.h"
 #include "read_config.h"
 #include "registry.h"
-#include "selector.h"
 #include "store.h"
 #include "xmalloc.h"
 #include "zzz_list.h"
-
-struct getter_opts getter_opts;
 
 static void source_send(void *data, void *source, const char *mime_type, int32_t fd) {
     (void) source;
@@ -63,33 +60,14 @@ static void handle_label(struct wl_objs *wl_objs, const struct zzz_list *store_i
     data_control.device_set_selection(wl_objs->device, source);
 }
 
-static void handle_command(struct wl_objs *wl_objs, const struct zzz_list *store_index)  {
-    char *set_label = select_set_label_with_command(
-        store_index,
-        getter_opts.args.command.parts,
-        getter_opts.args.command.len
-    );
-    if (set_label == NULL) {
-        exit(EXIT_FAILURE);
-    }
-    handle_label(wl_objs, store_index, set_label);
-}
-
 void getter_manager_callback(void *data, struct wl_objs *wl_objs) {
-    (void) data;
+    char *set_label = data;
     struct zzz_list store_index;
     if (!store_lock() || !read_index(&store_index)) {
         fputs("failed to read index, aborting\n", stderr);
         exit(EXIT_FAILURE);
     }
-    switch (getter_opts.mode) {
-    case GETTER_MODE_COMMAND:
-        handle_command(wl_objs, &store_index);
-        break;
-    case GETTER_MODE_LABEL:
-        handle_label(wl_objs, &store_index, getter_opts.args.label);
-        break;
-    }
+    handle_label(wl_objs, &store_index, set_label);
     free_index(&store_index);
     store_unlock();
 }

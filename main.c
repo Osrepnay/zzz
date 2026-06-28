@@ -7,7 +7,6 @@
 #include "getter.h"
 #include "lister.h"
 #include "read_config.h"
-#include "selector.h"
 #include "store.h"
 
 // initialize filesystem stuff like config and store
@@ -132,116 +131,84 @@ static void subcommand_list(char *const *argv, int argc) {
 
 static void subcommand_get(char *const *argv, int argc) {
     char *get_help =
-        "usage: zzzclip get [options] (<label> | (-- <command>))\n"
+        "usage: zzzclip get [options] <label>\n"
         "\n"
-        "Get a particular clipboard item, either by label or a selector command.\n"
-        "The selector command should take in a line-by-line listing of clipboard items and print the selected index.\n"
+        "Get a particular clipboard item by its label.\n"
         "\n"
         "options:\n"
         "  -h  print this help message\n";
+    bool failed = false;
     int c;
     while ((c = getopt(argc, argv, "h")) != -1) {
         switch (c) {
         case '?':
-            fputs(get_help, stderr);
-            exit(EXIT_FAILURE);
+            failed = true;
+            break;
         case 'h':
             fputs(get_help, stdout);
             exit(EXIT_SUCCESS);
         }
     }
-    if (strcmp(argv[optind - 1], "--") == 0) {
-        argv += optind - 1;
-        argc -= optind - 1;
-    } else {
-        argv += optind;
-        argc -= optind;
-    }
-    if (argc <= 0) {
-        fputs("expected label or command\n", stderr);
+    if (failed) {
         fputs(get_help, stderr);
         exit(EXIT_FAILURE);
-    } else if (strcmp(argv[0], "--") == 0) {
-        if (argc == 1) {
-            fputs("missing command after --\n", stderr);
-            fputs(get_help, stderr);
-            exit(EXIT_FAILURE);
-        }
-        getter_opts.mode = GETTER_MODE_COMMAND;
-        getter_opts.args.command.parts = argv + 1;
-        getter_opts.args.command.len = argc - 1;
-    } else {
-        if (argc > 1) {
-            fputs("more than one label provided, ignoring extra\n", stderr);
-        }
-        getter_opts.mode = GETTER_MODE_LABEL;
-        getter_opts.args.label = argv[0];
+    }
+    if (optind > argc - 1) {
+        fputs("expected label\n", stderr);
+        fputs(get_help, stderr);
+        exit(EXIT_FAILURE);
     }
 
     struct registry_state state = {0};
+    if (optind < argc - 1) {
+        fputs("more than one label provided, ignoring extra\n", stderr);
+    }
+    state.callback_data = argv[optind];
     state.manager_callback = getter_manager_callback;
-    state.callback_data = NULL;
     init_fs();
     start_event_loop(&state);
 }
 
 static void subcommand_delete(char **argv, int argc) {
     char *delete_help =
-        "usage: zzzclip delete [options] (<label> | (-- <command>))\n"
+        "usage: zzzclip delete [options] <label>...\n"
         "\n"
-        "Delete a particular clipboard item, either by label or a selector command.\n"
-        "The selector command should take in a line-by-line listing of clipboard items and print the selected index.\n"
+        "Delete clipboard item(s) by their label.\n"
         "\n"
         "options:\n"
         "  -h  print this help message\n";
+    bool failed = false;
     int c;
     while ((c = getopt(argc, argv, "h")) != -1) {
         switch (c) {
         case '?':
-            fputs(delete_help, stderr);
-            exit(EXIT_FAILURE);
+            failed = true;
+            break;
         case 'h':
             fputs(delete_help, stdout);
             exit(EXIT_SUCCESS);
         }
     }
-    if (strcmp(argv[optind - 1], "--") == 0) {
-        argv += optind - 1;
-        argc -= optind - 1;
-    } else {
-        argv += optind;
-        argc -= optind;
+    if (failed) {
+        fputs(delete_help, stderr);
+        exit(EXIT_FAILURE);
+    }
+    if (optind > argc - 1) {
+        fputs("expected label\n", stderr);
+        fputs(delete_help, stderr);
+        exit(EXIT_FAILURE);
     }
 
     init_fs();
-    // TODO refactor deleter code into deleter.c
     struct zzz_list store_index;
     if (!store_lock() || !read_index(&store_index)) {
         fputs("failed to read index, aborting\n", stderr);
         exit(EXIT_FAILURE);
     }
-    // jesus....
-    char del_label[1];
-    char *del_label_ptr = del_label;
-    char **del_labels = &del_label_ptr;
-    size_t del_labels_len;
-    if (argc >= 1 && strcmp(argv[0], "--") == 0) {
-        argc--;
-        argv++;
-        char *set_label = select_set_label_with_command(&store_index, argv, argc);
-        if (set_label == NULL) {
-            exit(EXIT_FAILURE);
-        }
-        *del_labels = set_label;
-        del_labels_len = 1;
-    } else {
-        del_labels = argv;
-        del_labels_len = argc;
-    }
     bool fail = true;
-    for (size_t i = 0; i < del_labels_len; i++) {
-        if (!delete_items(&store_index, del_labels[i])) {
-            fprintf(stderr, "failed to delete label %s\n", del_labels[i]);
+    for (size_t i = optind; i < (size_t)argc; i++) {
+        if (!delete_items(&store_index, argv[i])) {
+            fprintf(stderr, "failed to delete label %s\n", argv[i]);
         }
     }
     if (fail) {
@@ -264,6 +231,7 @@ int main(int argc, char *argv[]) {
         "options:\n"
         "  -h  Print this help message. Use with subcommand to get more specific options.\n";
     int c;
+    // we use +h here instead of just h because we don't want it interfering with subcommand opts
     while ((c = getopt(argc, argv, "+h")) != -1) {
         switch (c) {
         case '?':
@@ -277,7 +245,7 @@ int main(int argc, char *argv[]) {
     optind++;
 
     if (argv[optind - 1] == NULL) {
-        fputs("missing subcommand\n", stderr);
+        fputs("expected subcommand\n", stderr);
         fputs(general_help, stderr);
         exit(EXIT_FAILURE);
     } else if (strcmp(argv[optind - 1], "daemon") == 0) {

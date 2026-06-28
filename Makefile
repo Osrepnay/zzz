@@ -14,7 +14,7 @@ debug: build
 clean:
 	rm -r build/*
 
-build/zzzclip: main.c build/ext-data-control-protocol.o build/wlr-data-control-protocol.o build/xmalloc.o build/zzz_list.o build/read_config.o build/parse_config.o build/selector.o build/store.o build/data_control_wrapper.o build/daemon.o build/getter.o build/lister.o build/registry.o
+build/zzzclip: main.c build/ext-data-control-protocol.o build/wlr-data-control-protocol.o build/xmalloc.o build/zzz_list.o build/read_config.o build/parse_config.o build/store.o build/data_control_wrapper.o build/daemon.o build/getter.o build/lister.o build/registry.o
 	$(CC) $(CFLAGS) -lwayland-client -o build/zzzclip main.c build/*.o
 
 build/daemon.o: daemon.c daemon.h
@@ -37,9 +37,6 @@ build/read_config.o: read_config.c read_config.h
 
 build/parse_config.o: parse_config.c parse_config.h
 	$(CC) $(CFLAGS) -c -o build/parse_config.o parse_config.c
-
-build/selector.o: selector.c selector.h
-	$(CC) $(CFLAGS) -c -o build/selector.o selector.c
 
 build/store.o: store.c store.h
 	$(CC) $(CFLAGS) -c -o build/store.o store.c
