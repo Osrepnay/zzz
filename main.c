@@ -10,6 +10,41 @@
 #include "selector.h"
 #include "store.h"
 
+// initialize filesystem stuff like config and store
+// this is separated because we should do this after
+// parsing arguments
+static void init_fs(void) {
+    store_init();
+    struct config_assign assignments[] = {
+        {
+            .name = "max-entries",
+            .expected_type = KV_VALUE_INTEGER,
+            .write_to = &store_opts.max_entries,
+        },
+        {
+            .name = "max-item-bytes",
+            .expected_type = KV_VALUE_INTEGER,
+            .write_to = &daemon_opts.max_item_bytes,
+        },
+        {
+            .name = "max-preview",
+            .expected_type = KV_VALUE_INTEGER,
+            .write_to = &lister_opts.max_preview,
+        },
+        {
+            .name = "replace-clipboard-on-clear",
+            .expected_type = KV_VALUE_BOOLEAN,
+            .write_to = &daemon_opts.replace_clipboard_on_clear,
+        },
+        {
+            .name = "mime-pref",
+            .expected_type = KV_VALUE_MIME_PREF,
+            .write_to = &daemon_opts.pref,
+        },
+    };
+    get_config(assignments, sizeof(assignments) / sizeof(*assignments));
+}
+
 static void start_event_loop(struct registry_state *state) {
     state->wl_objs.display = wl_display_connect(NULL);
     if (state->wl_objs.display == NULL) {
@@ -53,6 +88,7 @@ static void subcommand_daemon(char *const *argv, int argc) {
     struct registry_state state = {0};
     state.manager_callback = daemon_manager_callback;
     state.callback_data = NULL;
+    init_fs();
     start_event_loop(&state);
 }
 
@@ -81,6 +117,7 @@ static void subcommand_list(char *const *argv, int argc) {
         exit(EXIT_FAILURE);
     }
 
+    init_fs();
     struct zzz_list store_index;
     if (!store_lock() || !read_index(&store_index)) {
         fputs("failed to read index, aborting\n", stderr);
@@ -144,6 +181,7 @@ static void subcommand_get(char *const *argv, int argc) {
     struct registry_state state = {0};
     state.manager_callback = getter_manager_callback;
     state.callback_data = NULL;
+    init_fs();
     start_event_loop(&state);
 }
 
@@ -175,6 +213,7 @@ static void subcommand_delete(char **argv, int argc) {
         argc -= optind;
     }
 
+    init_fs();
     // TODO refactor deleter code into deleter.c
     struct zzz_list store_index;
     if (!store_lock() || !read_index(&store_index)) {
@@ -213,37 +252,6 @@ static void subcommand_delete(char **argv, int argc) {
 }
 
 int main(int argc, char *argv[]) {
-    // TODO allow -h and such even if the config or store are borked
-    store_init();
-    struct config_assign assignments[] = {
-        {
-            .name = "max-entries",
-            .expected_type = KV_VALUE_INTEGER,
-            .write_to = &store_opts.max_entries,
-        },
-        {
-            .name = "max-item-bytes",
-            .expected_type = KV_VALUE_INTEGER,
-            .write_to = &daemon_opts.max_item_bytes,
-        },
-        {
-            .name = "max-preview",
-            .expected_type = KV_VALUE_INTEGER,
-            .write_to = &lister_opts.max_preview,
-        },
-        {
-            .name = "replace-clipboard-on-clear",
-            .expected_type = KV_VALUE_BOOLEAN,
-            .write_to = &daemon_opts.replace_clipboard_on_clear,
-        },
-        {
-            .name = "mime-pref",
-            .expected_type = KV_VALUE_MIME_PREF,
-            .write_to = &daemon_opts.pref,
-        },
-    };
-    get_config(assignments, sizeof(assignments) / sizeof(*assignments));
-
     char *general_help = 
         "usage: zzzclip ([options] | <command> [command-options])\n"
         "\n"
