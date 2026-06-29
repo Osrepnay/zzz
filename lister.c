@@ -45,27 +45,23 @@ static bool fprint_binary(FILE *f, char *mime, size_t len) {
     return status;
 }
 
-bool fprint_line(FILE *f, const struct zzz_list *filenames, bool print_label) {
+bool fprint_line(FILE *f, const struct zzz_list *entries, bool print_label) {
     // defaults to utf8 text, uses the first
     // one listed as a fallback
-    char *chosen_filename = NULL;
-    char *chosen_mime = NULL;
+    struct index_entry *chosen_entry = NULL;
     char *data = NULL;
     size_t len;
     bool is_text = false;
-    ZZZ_LIST_FOREACH(*filenames, filename_node) {
-        FILE *file = open_clip_file(filename_node->value);
+    ZZZ_LIST_FOREACH(*entries, entry_node) {
+        struct index_entry *entry = entry_node->value;
+        FILE *file = open_clip_file(entry->label);
         // is it a good idea to silently skip?
         if (file == NULL) continue;
-        char *mime = read_mime(file);
-        if (mime == NULL) {
-            fclose(file);
-            continue;
-        }
+
         // TODO more flexible text mime recognition
-        if (strcmp(mime, "UTF8_STRING") == 0
-                || strcmp(mime, "TEXT") == 0
-                || strstr(mime, "text/plain") != NULL) {
+        if (strcmp(entry->mime, "UTF8_STRING") == 0
+                || strcmp(entry->mime, "TEXT") == 0
+                || strstr(entry->mime, "text/plain") != NULL) {
             // store for freeing later if
             // data does indeed end up getting replaced
             char *old_data = NULL;
@@ -82,39 +78,32 @@ bool fprint_line(FILE *f, const struct zzz_list *filenames, bool print_label) {
                 if (fread(data, 1, len, file) == len) {
                     if (old_data != NULL) {
                         free(old_data);
-                        free(chosen_mime);
                     }
                     is_text = true;
-                    chosen_filename = filename_node->value;
-                    chosen_mime = mime;
+                    chosen_entry = entry;
                 }
             }
-        } else if (chosen_filename == NULL) {
+        } else if (chosen_entry == NULL) {
             if (file_remaining_bytes(file, &len)) {
-                chosen_filename = filename_node->value;
-                chosen_mime = mime;
+                chosen_entry = entry;
             }
         }
         fclose(file);
-        if (chosen_mime != mime) {
-            free(mime);
-        }
         if (is_text) {
             break;
         }
     }
     if (print_label) {
-        fprintf(f, "%s\t", (char *)zzz_list_by_idx(filenames, 0));
+        fprintf(f, "%s\t", ((struct index_entry *)zzz_list_by_idx(entries, 0))->label);
     }
     bool success;
     if (is_text) {
         success = fprint_textual(f, data, len);
-    } else if (chosen_filename != NULL) {
-        success = fprint_binary(f, chosen_mime, len);
+    } else if (chosen_entry != NULL) {
+        success = fprint_binary(f, chosen_entry->mime, len);
     } else {
         success = false;
     }
-    free(chosen_mime);
     free(data);
     return success;
 }

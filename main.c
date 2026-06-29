@@ -66,7 +66,7 @@ static void subcommand_daemon(char *const *argv, int argc) {
         "Main process, monitors clipboard contents.\n"
         "\n"
         "options:\n"
-        "  -h  Print this help message\n";
+        "  -h  Print this help message.\n";
     bool failed = false;
     int c;
     while ((c = getopt(argc, argv, "h")) != -1) {
@@ -134,12 +134,16 @@ static void subcommand_get(char *const *argv, int argc) {
         "usage: zzzclip get [options] <label>\n"
         "\n"
         "Get a particular clipboard item by its label.\n"
+        "Default behavior is to copy the item, but this can be changed with the options below.\n"
         "\n"
         "options:\n"
-        "  -h  print this help message\n";
+        "  -h              Print this help message.\n"
+        "  -s              Output a summary of the item.\n"
+        "  -l              List stored MIME types.\n"
+        "  -m <mime-type>  Output the data under a specific MIME type.\n";
     bool failed = false;
     int c;
-    while ((c = getopt(argc, argv, "h")) != -1) {
+    while ((c = getopt(argc, argv, "hslm:")) != -1) {
         switch (c) {
         case '?':
             failed = true;
@@ -147,6 +151,10 @@ static void subcommand_get(char *const *argv, int argc) {
         case 'h':
             fputs(get_help, stdout);
             exit(EXIT_SUCCESS);
+        case 's':
+        case 'l':
+        case 'm':
+            puts("TODO");
         }
     }
     if (failed) {
@@ -176,7 +184,7 @@ static void subcommand_delete(char **argv, int argc) {
         "Delete clipboard item(s) by their label.\n"
         "\n"
         "options:\n"
-        "  -h  print this help message\n";
+        "  -h  Print this help message.\n";
     bool failed = false;
     int c;
     while ((c = getopt(argc, argv, "h")) != -1) {

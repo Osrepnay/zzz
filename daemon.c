@@ -90,7 +90,7 @@ static void free_full_offer_void(void *full_offer_void) {
 }
 
 // finds and removes full offer from list of full offers, using raw offer as key
-static bool full_offers_remove(struct zzz_list *list, void *offer, struct zzz_list *offer_mimes) {
+static bool full_offers_remove(struct zzz_list *offer_mimes, struct zzz_list *list, void *offer) {
     if (offer == NULL) return false;
     ZZZ_LIST_FOREACH(*list, curr) {
         // TODO is this legal? (comparing pointers for wl objects)
@@ -201,6 +201,7 @@ static bool safe_roundtrip(struct daemon_device_state *state) {
     return tamper_expected == state->tamper_count;
 }
 
+// reads from fds, creates saved_items (list of clip_items), writes to disk
 static void read_fds(struct zzz_list *saved_items, struct zzz_list *mimes, int *fds) {
     size_t chunk_size = 1024;
 
@@ -295,6 +296,11 @@ static void read_fds(struct zzz_list *saved_items, struct zzz_list *mimes, int *
     free(clip_items);
     free(data_capacities);
     struct zzz_list store_index;
+    // this can happen if the read doesn't complete
+    // for example, if it exceeds the max bytes
+    if (saved_items->len == 0) {
+        return;
+    }
     if (!store_lock()
             || !read_index(&store_index)
             || !write_items(&store_index, saved_items)
@@ -317,7 +323,7 @@ static struct zzz_list process_offer(struct daemon_device_state *state, void *of
     }
 
     struct zzz_list offer_mimes;
-    if (!full_offers_remove(&state->pending_offers, offer, &offer_mimes)) {
+    if (!full_offers_remove(&offer_mimes, &state->pending_offers, offer)) {
         fputs("selection given before offer\n", stderr);
         return zzz_list_empty;
     }
@@ -434,7 +440,7 @@ static void device_primary_selection(void *data, void *device, void *offer) {
 
     // we don't care about the pending offer, dump it
     struct zzz_list offer_mimes;
-    if (full_offers_remove(&state->pending_offers, offer, &offer_mimes)) {
+    if (full_offers_remove(&offer_mimes, &state->pending_offers, offer)) {
         zzz_list_free(&offer_mimes, free);
         data_control.offer_destroy(offer);
     }
