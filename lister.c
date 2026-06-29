@@ -45,7 +45,7 @@ static bool fprint_binary(FILE *f, char *mime, size_t len) {
     return status;
 }
 
-bool fprint_line(FILE *f, const struct zzz_list *entries, bool print_label) {
+static bool fprint_line(FILE *f, const struct zzz_list *entries, bool print_label) {
     // defaults to utf8 text, uses the first
     // one listed as a fallback
     struct index_entry *chosen_entry = NULL;
