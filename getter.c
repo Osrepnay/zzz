@@ -44,10 +44,13 @@ static struct source_listener source_listener = {
     .cancelled = &source_cancelled
 };
 
-static void handle_label(struct wl_objs *wl_objs, const struct zzz_list *store_index, const char *set_label) {
+void getter_manager_callback(void *data, struct wl_objs *wl_objs) {
+    struct getter_cb_data *cb_data = data;
+    struct zzz_list store_index = must_lock_and_read_index();
     struct zzz_list *clip_items = xmalloc(sizeof(*clip_items));
-    if (!read_items(clip_items, store_index, set_label)) {
-        fprintf(stderr, "error reading label %s, aborting\n", set_label);
+
+    if (!read_items(clip_items, &store_index, cb_data->set_label)) {
+        fprintf(stderr, "error reading label %s, aborting\n", cb_data->set_label);
         exit(EXIT_FAILURE);
     }
     void *source = data_control.manager_create_data_source(wl_objs->manager);
@@ -58,16 +61,13 @@ static void handle_label(struct wl_objs *wl_objs, const struct zzz_list *store_i
     data_control.source_offer(source, INTERNAL_MIME);
     data_control.source_add_listener(source, &source_listener, clip_items);
     data_control.device_set_selection(wl_objs->device, source);
-}
 
-void getter_manager_callback(void *data, struct wl_objs *wl_objs) {
-    char *set_label = data;
-    struct zzz_list store_index;
-    if (!store_lock() || !read_index(&store_index)) {
-        fputs("failed to read index, aborting\n", stderr);
-        exit(EXIT_FAILURE);
+    // tell main thread that copy was successful
+    if (cb_data->status_fd >= 0) {
+        write(cb_data->status_fd, "!", 1);
+        close(cb_data->status_fd);
     }
-    handle_label(wl_objs, &store_index, set_label);
+
     free_index(&store_index);
     store_unlock();
 }

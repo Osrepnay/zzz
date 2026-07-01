@@ -1,13 +1,16 @@
 #define _XOPEN_SOURCE 500
 
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "daemon.h"
 #include "getter.h"
 #include "lister.h"
 #include "read_config.h"
 #include "store.h"
+#include "xmalloc.h"
 
 // initialize filesystem stuff like config and store
 // this is separated because we should do this after
@@ -76,7 +79,7 @@ static void subcommand_daemon(char *const *argv, int argc) {
             break;
         case 'h':
             fputs(daemon_help, stdout);
-            exit(EXIT_SUCCESS);
+            exit(failed ? EXIT_FAILURE : EXIT_SUCCESS);
         }
     }
     if (failed) {
@@ -98,17 +101,22 @@ static void subcommand_list(char *const *argv, int argc) {
         "List all clipboard items.\n"
         "\n"
         "options:\n"
-        "  -h  Print this help message\n";
+        "  -h  Print this help message.\n"
+        "  -v  Verbose mode.";
+    bool verbose = false;
     bool failed = false;
     int c;
-    while ((c = getopt(argc, argv, "h")) != -1) {
+    while ((c = getopt(argc, argv, "hv")) != -1) {
         switch (c) {
         case '?':
             failed = true;
             break;
         case 'h':
             fputs(list_help, stdout);
-            exit(EXIT_SUCCESS);
+            exit(failed ? EXIT_FAILURE : EXIT_SUCCESS);
+        case 'v':
+            verbose = true;
+            break;
         }
     }
     if (failed) {
@@ -117,17 +125,17 @@ static void subcommand_list(char *const *argv, int argc) {
     }
 
     init_fs();
-    struct zzz_list store_index;
-    if (!store_lock() || !read_index(&store_index)) {
-        fputs("failed to read index, aborting\n", stderr);
-        exit(EXIT_FAILURE);
-    }
-    if (fprint_listing(stdout, &store_index, true)) {
-        exit(EXIT_SUCCESS);
-    } else {
+    if (!print_listing(verbose)) {
         exit(EXIT_FAILURE);
     }
 }
+
+enum get_mode {
+    GET_MODE_COPY,
+    GET_MODE_SUMMARY,
+    GET_MODE_LIST_MIMES,
+    GET_MODE_PRINT,
+};
 
 static void subcommand_get(char *const *argv, int argc) {
     char *get_help =
@@ -138,23 +146,36 @@ static void subcommand_get(char *const *argv, int argc) {
         "\n"
         "options:\n"
         "  -h              Print this help message.\n"
+        "  -f              Keep copy process in the foreground.\n"
         "  -s              Output a summary of the item.\n"
         "  -l              List stored MIME types.\n"
         "  -m <mime-type>  Output the data under a specific MIME type.\n";
+    enum get_mode mode = GET_MODE_COPY;
+    char *get_mime = NULL;
+    bool foreground = false;
     bool failed = false;
     int c;
-    while ((c = getopt(argc, argv, "hslm:")) != -1) {
+    while ((c = getopt(argc, argv, "hfslm:")) != -1) {
         switch (c) {
         case '?':
             failed = true;
             break;
         case 'h':
             fputs(get_help, stdout);
-            exit(EXIT_SUCCESS);
+            exit(failed ? EXIT_FAILURE : EXIT_SUCCESS);
+        case 'f':
+            foreground = true;
+            break;
         case 's':
+            mode = GET_MODE_SUMMARY;
+            break;
         case 'l':
+            mode = GET_MODE_LIST_MIMES;
+            break;
         case 'm':
-            puts("TODO");
+            mode = GET_MODE_PRINT;
+            get_mime = optarg;
+            break;
         }
     }
     if (failed) {
@@ -166,15 +187,62 @@ static void subcommand_get(char *const *argv, int argc) {
         fputs(get_help, stderr);
         exit(EXIT_FAILURE);
     }
-
-    struct registry_state state = {0};
     if (optind < argc - 1) {
         fputs("more than one label provided, ignoring extra\n", stderr);
     }
-    state.callback_data = argv[optind];
-    state.manager_callback = getter_manager_callback;
+
+    char *set_label = argv[optind];
     init_fs();
-    start_event_loop(&state);
+    switch (mode) {
+    case GET_MODE_COPY:;
+        struct registry_state state = {0};
+        state.manager_callback = getter_manager_callback;
+        struct getter_cb_data getter_data = {0};
+        getter_data.set_label = argv[optind];
+        state.callback_data = &getter_data;
+        if (foreground) {
+            getter_data.status_fd = -1;
+            start_event_loop(&state);
+        } else {
+            int status_fds[2];
+            if (pipe(status_fds) != 0) {
+                fprintf(stderr, "pipe failed: %s", strerror(errno));
+                exit(EXIT_FAILURE);
+            }
+            getter_data.status_fd = status_fds[1];
+            switch(fork()) {
+            case -1:
+                fprintf(stderr, "fork failed: %s", strerror(errno));
+                break;
+            case 0:
+                close(status_fds[0]);
+                start_event_loop(&state);
+                break;
+            default:
+                close(status_fds[1]);
+                // getter should send back 1 byte on success
+                if (read(status_fds[0], &(char[1]) {0}, 1) != 1) {
+                    exit(EXIT_FAILURE);
+                }
+            }
+        }
+        break;
+    case GET_MODE_SUMMARY:
+        if (!print_summary(set_label)) {
+            exit(EXIT_FAILURE);
+        }
+        break;
+    case GET_MODE_LIST_MIMES:
+        if (!print_stored_mimes(set_label)) {
+            exit(EXIT_FAILURE);
+        }
+        break;
+    case GET_MODE_PRINT:
+        if (!print_data(set_label, get_mime)) {
+            exit(EXIT_FAILURE);
+        }
+        break;
+    }
 }
 
 static void subcommand_delete(char **argv, int argc) {
@@ -194,7 +262,7 @@ static void subcommand_delete(char **argv, int argc) {
             break;
         case 'h':
             fputs(delete_help, stdout);
-            exit(EXIT_SUCCESS);
+            exit(failed ? EXIT_FAILURE : EXIT_SUCCESS);
         }
     }
     if (failed) {
@@ -208,11 +276,7 @@ static void subcommand_delete(char **argv, int argc) {
     }
 
     init_fs();
-    struct zzz_list store_index;
-    if (!store_lock() || !read_index(&store_index)) {
-        fputs("failed to read index, aborting\n", stderr);
-        exit(EXIT_FAILURE);
-    }
+    struct zzz_list store_index = must_lock_and_read_index();
     bool fail = true;
     for (size_t i = optind; i < (size_t)argc; i++) {
         if (!delete_items(&store_index, argv[i])) {

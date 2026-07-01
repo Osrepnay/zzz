@@ -295,15 +295,13 @@ static void read_fds(struct zzz_list *saved_items, struct zzz_list *mimes, int *
     free(pollfds);
     free(clip_items);
     free(data_capacities);
-    struct zzz_list store_index;
     // this can happen if the read doesn't complete
     // for example, if it exceeds the max bytes
     if (saved_items->len == 0) {
         return;
     }
-    if (!store_lock()
-            || !read_index(&store_index)
-            || !write_items(&store_index, saved_items)
+    struct zzz_list store_index = must_lock_and_read_index();
+    if (!write_items(&store_index, saved_items)
             || !trim_items(&store_index)) {
         fputs("failed to write clip data to disk, aborting\n", stderr);
         exit(EXIT_FAILURE);

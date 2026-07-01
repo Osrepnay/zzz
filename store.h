@@ -24,17 +24,24 @@ struct index_entry {
     char *mime;
 };
 
+void free_clip_item_void(void *clip_item_void);
+
 void store_init(void);
 bool store_lock(void);
+struct zzz_list must_lock_and_read_index(void);
 void store_unlock(void);
+
 void free_index(struct zzz_list *index);
 bool read_index(struct zzz_list *store_index);
+
 bool write_items(struct zzz_list *store_index, const struct zzz_list *clip_items);
 bool trim_items(struct zzz_list *store_index);
 bool delete_items(struct zzz_list *store_index, const char *set_label);
+
 FILE *open_clip_file(const char *label);
 bool file_remaining_bytes(FILE *file, size_t *bytes);
+
+struct zzz_list *find_set_label(const struct zzz_list *store_index, const char *set_label);
 bool read_items(struct zzz_list *clip_items, const struct zzz_list *store_index, const char *set_label);
-void free_clip_item_void(void *clip_item_void);
 
 #endif

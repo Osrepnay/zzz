@@ -118,6 +118,10 @@ void store_init(void) {
 // the index file acts as a lock for the whole directory
 bool store_lock(void) {
     assert(store_dir != NULL);
+    // it's already locked, noop
+    if (index_fd == -1) {
+        return true;
+    }
     index_fd = open(index_path, O_RDWR | O_CREAT, 0666);
     if (index_fd == -1) return false;
     if (flock(index_fd, LOCK_EX) != 0) {
@@ -237,6 +241,16 @@ bool read_index(struct zzz_list *store_index) {
     fclose(index_file);
     *store_index = index;
     return true;
+}
+
+// :/
+struct zzz_list must_lock_and_read_index(void) {
+    struct zzz_list store_index;
+    if (!store_lock() || !read_index(&store_index)) {
+        fputs("failed to read index, aborting\n", stderr);
+        exit(EXIT_FAILURE);
+    }
+    return store_index;
 }
 
 static bool write_index(const struct zzz_list *store_index) {
@@ -431,19 +445,20 @@ bool file_remaining_bytes(FILE *file, size_t *bytes) {
     return true;
 }
 
-// get clip items from a label
-bool read_items(struct zzz_list *clip_items, const struct zzz_list *store_index, const char *set_label) {
-    // find entries under set_label
-    struct zzz_list *entries = NULL;
-    ZZZ_LIST_FOREACH(*store_index, index_node) {
-        struct zzz_list *curr_entries = index_node->value;
-        if (curr_entries->len <= 0) continue;
-        struct index_entry *first = zzz_list_by_idx(curr_entries, 0);
-        if (strcmp(first->label, set_label) == 0) {
-            entries = curr_entries;
-            break;
+// find the row labeled by set_label
+struct zzz_list *find_set_label(const struct zzz_list *store_index, const char *set_label) {
+    ZZZ_LIST_FOREACH(*store_index, index_row_node) {
+        struct index_entry *entry = zzz_list_by_idx(index_row_node->value, 0);
+        if (strcmp(set_label, entry->label) == 0) {
+            return index_row_node->value;
         }
     }
+    return NULL;
+}
+
+// get clip items from a label
+bool read_items(struct zzz_list *clip_items, const struct zzz_list *store_index, const char *set_label) {
+    struct zzz_list *entries = find_set_label(store_index, set_label);
     if (entries == NULL) return false;
 
     struct zzz_list items = zzz_list_empty;
@@ -463,7 +478,7 @@ bool read_items(struct zzz_list *clip_items, const struct zzz_list *store_index,
 
         struct clip_item *item = xmalloc(sizeof(*item));
         *item = (struct clip_item) {
-            .mime = entry->mime,
+            .mime = xstrdup(entry->mime),
             .data = data,
             .len = len,
         };

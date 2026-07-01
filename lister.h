@@ -1,7 +1,4 @@
 #include <stdbool.h>
-#include <stdio.h>
-
-#include "zzz_list.h"
 
 struct lister_opts {
     long long max_preview;
@@ -9,4 +6,7 @@ struct lister_opts {
 
 extern struct lister_opts lister_opts;
 
-bool fprint_listing(FILE *f, const struct zzz_list *store_index, bool print_label);
+bool print_listing(bool verbose);
+bool print_stored_mimes(const char *set_label);
+bool print_summary(const char *set_label);
+bool print_data(const char *set_label, const char *mime);
