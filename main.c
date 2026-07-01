@@ -6,8 +6,8 @@
 #include <unistd.h>
 
 #include "daemon.h"
+#include "display.h"
 #include "getter.h"
-#include "lister.h"
 #include "read_config.h"
 #include "store.h"
 #include "xmalloc.h"
@@ -31,7 +31,7 @@ static void init_fs(void) {
         {
             .name = "max-preview",
             .expected_type = KV_VALUE_INTEGER,
-            .write_to = &lister_opts.max_preview,
+            .write_to = &display_opts.max_preview,
         },
         {
             .name = "replace-clipboard-on-clear",

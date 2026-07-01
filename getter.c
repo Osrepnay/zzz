@@ -7,7 +7,7 @@
 #include <unistd.h>
 
 #include "data_control_wrapper.h"
-#include "lister.h"
+#include "display.h"
 #include "getter.h"
 #include "read_config.h"
 #include "registry.h"

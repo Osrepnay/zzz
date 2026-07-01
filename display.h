@@ -1,10 +1,10 @@
 #include <stdbool.h>
 
-struct lister_opts {
+struct display_opts {
     long long max_preview;
 };
 
-extern struct lister_opts lister_opts;
+extern struct display_opts display_opts;
 
 bool print_listing(bool verbose);
 bool print_stored_mimes(const char *set_label);

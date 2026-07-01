@@ -4,12 +4,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "lister.h"
+#include "display.h"
 #include "store.h"
 #include "xmalloc.h"
 #include "zzz_list.h"
 
-struct lister_opts lister_opts = {
+struct display_opts display_opts = {
     .max_preview = 1000,
 };
 
@@ -69,10 +69,10 @@ static bool print_preview(const struct zzz_list *entries) {
                 old_data = data;
             }
             if (file_remaining_bytes(file, &len)) {
-                if (lister_opts.max_preview < 0) {
+                if (display_opts.max_preview < 0) {
                     len = 0;
-                } else if (len > (size_t)lister_opts.max_preview) {
-                    len = lister_opts.max_preview;
+                } else if (len > (size_t)display_opts.max_preview) {
+                    len = display_opts.max_preview;
                 }
                 data = xmalloc(len);
                 if (fread(data, 1, len, file) == len) {
