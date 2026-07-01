@@ -116,6 +116,7 @@ void store_init(void) {
 }
 
 // the index file acts as a lock for the whole directory
+// TODO this breaks on write_index because of the rename!!
 bool store_lock(void) {
     assert(store_dir != NULL);
     // it's already locked, noop
@@ -262,7 +263,8 @@ static bool write_index(const struct zzz_list *store_index) {
         return false;
     }
     // love buffering
-    FILE *tmp_index = fdopen(tmp_index_fd, "w");
+    // dup means we can keep using tmp_index_fd
+    FILE *tmp_index = fdopen(dup(tmp_index_fd), "w");
     if (tmp_index == NULL) goto cleanup;
     ZZZ_LIST_FOREACH(*store_index, index_node) {
         struct zzz_list *entry_list = index_node->value;
@@ -276,7 +278,10 @@ static bool write_index(const struct zzz_list *store_index) {
         fputc('\0', tmp_index);
     }
     if (fsync(tmp_index_fd) != 0) goto cleanup;
+    if (flock(tmp_index_fd, LOCK_EX) != 0) goto cleanup;
     if (rename(tmp_path, index_path) != 0) goto cleanup;
+    close(index_fd);
+    index_fd = tmp_index_fd;
     success = true;
 cleanup:
     // if early goto
