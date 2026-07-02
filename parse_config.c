@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <regex.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -26,7 +27,7 @@
         size_t string_len = 0; \
         while (!is_eof(state) \
                 && condition \
-                && strchr(whitespace, peek_char(state)) == NULL) { \
+                && isspace(peek_char(state)) == 0) { \
             string_len++; \
             advance(state); \
         } \
@@ -122,15 +123,13 @@ static bool try_string(struct parse_state *state, char *str) {
     }
 }
 
-static char *whitespace = " \n\r\t";
-
 static bool take_whitespace(struct parse_state *state) {
     bool took = false;
     // whitespace is not comprehensive but in what serious scenario
     // are you gonna have anything else in your config file
     while (!is_eof(state)) {
         char c = peek_char(state);
-        if (strchr(whitespace, c) != NULL) {
+        if (isspace(c) != 0) {
             took = true;
             advance(state);
         } else if (c == '#') {
