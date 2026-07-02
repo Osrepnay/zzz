@@ -444,10 +444,7 @@ struct zzz_list *find_set_label(const struct zzz_list *store_index, const char *
 }
 
 // get clip items from a label
-bool read_items(struct zzz_list *clip_items, const struct zzz_list *store_index, const char *set_label) {
-    struct zzz_list *entries = find_set_label(store_index, set_label);
-    if (entries == NULL) return false;
-
+bool read_items(struct zzz_list *clip_items, const struct zzz_list *entries) {
     struct zzz_list items = zzz_list_empty;
     ZZZ_LIST_FOREACH(*entries, entry_node) {
         struct index_entry *entry = entry_node->value;

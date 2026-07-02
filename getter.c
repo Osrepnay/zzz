@@ -12,6 +12,7 @@
 #include "read_config.h"
 #include "registry.h"
 #include "store.h"
+#include "symlink_manager.h"
 #include "xmalloc.h"
 #include "zzz_list.h"
 
@@ -49,10 +50,16 @@ void getter_manager_callback(void *data, struct wl_objs *wl_objs) {
     struct zzz_list store_index = must_lock_and_read_index();
     struct zzz_list *clip_items = xmalloc(sizeof(*clip_items));
 
-    if (!read_items(clip_items, &store_index, cb_data->set_label)) {
-        fprintf(stderr, "error reading label %s, aborting\n", cb_data->set_label);
+    struct zzz_list *entries = find_set_label(&store_index, cb_data->set_label);
+    if (entries == NULL) {
+        fprintf(stderr, "label %s does not exist\n", cb_data->set_label);
         exit(EXIT_FAILURE);
     }
+    if (!read_items(clip_items, entries)) {
+        fprintf(stderr, "error reading label %s\n", cb_data->set_label);
+        exit(EXIT_FAILURE);
+    }
+
     void *source = data_control.manager_create_data_source(wl_objs->manager);
     ZZZ_LIST_FOREACH(*clip_items, clip_item_node) {
         struct clip_item *clip_item = clip_item_node->value;
@@ -61,6 +68,7 @@ void getter_manager_callback(void *data, struct wl_objs *wl_objs) {
     data_control.source_offer(source, INTERNAL_MIME);
     data_control.source_add_listener(source, &source_listener, clip_items);
     data_control.device_set_selection(wl_objs->device, source);
+    update_symlinks(entries);
 
     // tell main thread that copy was successful
     if (cb_data->status_fd >= 0) {

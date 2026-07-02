@@ -43,6 +43,6 @@ FILE *open_clip_file(const char *label);
 bool file_remaining_bytes(FILE *file, size_t *bytes);
 
 struct zzz_list *find_set_label(const struct zzz_list *store_index, const char *set_label);
-bool read_items(struct zzz_list *clip_items, const struct zzz_list *store_index, const char *set_label);
+bool read_items(struct zzz_list *clip_items, const struct zzz_list *entries);
 
 #endif

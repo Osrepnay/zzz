@@ -209,6 +209,11 @@ static void subcommand_get(char *const *argv, int argc) {
         struct getter_cb_data getter_data = {0};
         getter_data.set_label = argv[optind];
         state.callback_data = &getter_data;
+        // :(((((
+        // TODO need better options system...
+        if (daemon_opts.clipboard_as_files) {
+            symlink_init();
+        }
         if (foreground) {
             getter_data.status_fd = -1;
             start_event_loop(&state);
