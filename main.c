@@ -10,6 +10,7 @@
 #include "getter.h"
 #include "read_config.h"
 #include "store.h"
+#include "symlink_manager.h"
 #include "xmalloc.h"
 
 // initialize filesystem stuff like config and store
@@ -42,6 +43,11 @@ static void init_fs(void) {
             .name = "mime-pref",
             .expected_type = KV_VALUE_MIME_PREF,
             .write_to = &daemon_opts.pref,
+        },
+        {
+            .name = "clipboard-as-files",
+            .expected_type = KV_VALUE_BOOLEAN,
+            .write_to = &daemon_opts.clipboard_as_files,
         },
     };
     get_config(assignments, sizeof(assignments) / sizeof(*assignments));
@@ -91,6 +97,9 @@ static void subcommand_daemon(char *const *argv, int argc) {
     state.manager_callback = daemon_manager_callback;
     state.callback_data = NULL;
     init_fs();
+    if (daemon_opts.clipboard_as_files) {
+        symlink_init();
+    }
     start_event_loop(&state);
 }
 

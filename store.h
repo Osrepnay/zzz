@@ -34,6 +34,7 @@ void store_unlock(void);
 void free_index(struct zzz_list *index);
 bool read_index(struct zzz_list *store_index);
 
+char *path_from_label(const char *label);
 bool write_items(struct zzz_list *store_index, const struct zzz_list *clip_items);
 bool trim_items(struct zzz_list *store_index);
 bool delete_items(struct zzz_list *store_index, const char *set_label);

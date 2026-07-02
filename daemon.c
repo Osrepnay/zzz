@@ -1,5 +1,6 @@
 #define _XOPEN_SOURCE 500
 
+#include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -17,12 +18,14 @@
 #include "data_control_wrapper.h"
 #include "read_config.h"
 #include "store.h"
+#include "symlink_manager.h"
 #include "xmalloc.h"
 #include "zzz_list.h"
 
 struct daemon_opts daemon_opts = {
     .replace_clipboard_on_clear = true,
     .max_item_bytes = 10000000,
+    .clipboard_as_files = true,
 };
 
 struct daemon_device_state {
@@ -41,7 +44,20 @@ static void offer_new_offer(void *data, void *offer, const char *mime) {
     struct zzz_list *current_mimes = data;
     (void) offer;
 
-    char *duped = xstrdup(mime);
+    // trim spaces
+    // i think sometimes there are spaces after semicolon
+    // which can make regex recognition annoying
+    char *duped = malloc(strlen(mime) + 1);
+    size_t off = 0;
+    size_t i;
+    for (i = 0; mime[i] != '\0'; i++) {
+        if (isspace(mime[i])) {
+            off++;
+            continue;
+        }
+        duped[i - off] = mime[i];
+    }
+    duped[i - off] = '\0';
     zzz_list_append(current_mimes, duped);
 }
 
@@ -305,6 +321,9 @@ static void read_fds(struct zzz_list *saved_items, struct zzz_list *mimes, int *
             || !trim_items(&store_index)) {
         fputs("failed to write clip data to disk, aborting\n", stderr);
         exit(EXIT_FAILURE);
+    }
+    if (daemon_opts.clipboard_as_files) {
+        update_symlinks(zzz_list_by_idx(&store_index, 0));
     }
     free_index(&store_index);
     store_unlock();

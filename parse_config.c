@@ -27,7 +27,7 @@
         size_t string_len = 0; \
         while (!is_eof(state) \
                 && condition \
-                && isspace(peek_char(state)) == 0) { \
+                && !isspace(peek_char(state))) { \
             string_len++; \
             advance(state); \
         } \
@@ -129,7 +129,7 @@ static bool take_whitespace(struct parse_state *state) {
     // are you gonna have anything else in your config file
     while (!is_eof(state)) {
         char c = peek_char(state);
-        if (isspace(c) != 0) {
+        if (isspace(c)) {
             took = true;
             advance(state);
         } else if (c == '#') {

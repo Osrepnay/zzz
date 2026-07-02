@@ -35,6 +35,9 @@ mime-pref = [
     (image/png image/webp image/jpeg image/.*)
     (UTF8_STRING text/plain;charset=utf-8 TEXT text/plain text/.*)
 ]
+
+# creates files for the current clipboard in $XDG_RUNTIME_DIR/zzzclip
+clipboard-as-files = true
 ```
 
 ## dependencies
@@ -47,7 +50,6 @@ mime-pref = [
 - better error handling
 - deduplicating
 - fallback if entry too large (?)
-- FUSE
 
 ## warning
 

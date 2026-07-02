@@ -15,6 +15,7 @@
 #include <unistd.h>
 
 #include "store.h"
+#include "util.h"
 #include "xmalloc.h"
 #include "zzz_list.h"
 
@@ -38,25 +39,6 @@ static void free_index_entry_void(void *index_entry_void) {
     free(entry->label);
     free(entry->mime);
     free(entry);
-}
-
-static void mkdirp(char *dir) {
-    if (dir[0] == '\0') return;
-    size_t last_slash_idx = 1;
-    do {
-        while(dir[last_slash_idx] != '\0' && dir[last_slash_idx] != '/') {
-            last_slash_idx++;
-        }
-        char old_char = dir[last_slash_idx];
-        dir[last_slash_idx] = '\0';
-        if (access(dir, F_OK) != 0) {
-            if (mkdir(dir, S_IRWXU) != 0) {
-                fputs("could not create directory, aborting\n", stderr);
-                exit(EXIT_FAILURE);
-            }
-        }
-        dir[last_slash_idx] = old_char;
-    } while (dir[last_slash_idx++] != '\0');
 }
 
 static char *store_dir = NULL;
@@ -292,7 +274,7 @@ cleanup:
     return success;
 }
 
-static char *path_from_label(const char *label) {
+char *path_from_label(const char *label) {
     char *path = xmalloc(strlen(store_dir) + 1 + strlen(label) + 1);
     path[0] = '\0';
     strcat(path, store_dir);

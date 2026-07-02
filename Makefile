@@ -1,4 +1,4 @@
-CC=gcc
+C=gcc
 CFLAGS=-O2 -Ibuild/include -Wall -Wextra -Wpedantic -std=c11 -g
 
 .PHONY=clean debug check
@@ -14,7 +14,7 @@ debug: build
 clean:
 	rm -r build/*
 
-build/zzzclip: main.c build/ext-data-control-protocol.o build/wlr-data-control-protocol.o build/xmalloc.o build/zzz_list.o build/read_config.o build/parse_config.o build/store.o build/data_control_wrapper.o build/daemon.o build/getter.o build/display.o build/registry.o
+build/zzzclip: main.c build/ext-data-control-protocol.o build/wlr-data-control-protocol.o build/util.o build/xmalloc.o build/zzz_list.o build/read_config.o build/parse_config.o build/store.o build/symlink_manager.o build/data_control_wrapper.o build/daemon.o build/getter.o build/display.o build/registry.o
 	$(CC) $(CFLAGS) -lwayland-client -lm -o build/zzzclip main.c build/*.o
 
 build/daemon.o: daemon.c daemon.h
@@ -40,6 +40,12 @@ build/parse_config.o: parse_config.c parse_config.h
 
 build/store.o: store.c store.h
 	$(CC) $(CFLAGS) -c -o build/store.o store.c
+
+build/symlink_manager.o: symlink_manager.c symlink_manager.h
+	$(CC) $(CFLAGS) -c -o build/symlink_manager.o symlink_manager.c
+
+build/util.o: util.c util.h
+	$(CC) $(CFLAGS) -c -o build/util.o util.c
 
 build/xmalloc.o: xmalloc.c xmalloc.h
 	$(CC) $(CFLAGS) -c -o build/xmalloc.o xmalloc.c
