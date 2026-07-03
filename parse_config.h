@@ -56,5 +56,6 @@ struct parse_state {
 };
 
 bool parse_config(struct zzz_list *keyvalues, const char *text);
+struct mime_pref mime_pref_default(void);
 
 #endif

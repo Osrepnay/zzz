@@ -26,6 +26,7 @@ struct daemon_opts daemon_opts = {
     .replace_clipboard_on_clear = true,
     .max_item_bytes = 10000000,
     .clipboard_as_files = true,
+    // pref is set in main
 };
 
 struct daemon_device_state {

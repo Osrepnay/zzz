@@ -8,6 +8,7 @@
 #include "daemon.h"
 #include "display.h"
 #include "getter.h"
+#include "parse_config.h"
 #include "read_config.h"
 #include "store.h"
 #include "symlink_manager.h"
@@ -305,6 +306,9 @@ static void subcommand_delete(char **argv, int argc) {
 }
 
 int main(int argc, char *argv[]) {
+    // not a compile-time constant
+    daemon_opts.pref = mime_pref_default();
+
     char *general_help = 
         "usage: zzzclip ([options] | <command> [command-options])\n"
         "\n"

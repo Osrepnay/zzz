@@ -43,42 +43,33 @@ static bool get_config_entries(struct zzz_list *config_entries) {
     if (path == NULL) return false;
     FILE *config_file = fopen(path, "r");
     free(path);
-
-    if (config_file != NULL) {
-        bool success = false;
-        char *config_text = NULL;
-
-        if (fseek(config_file, 0, SEEK_END) != 0) goto cleanup;
-        long ending_offset = ftell(config_file);
-        if (ending_offset == -1) goto cleanup;
-        if (fseek(config_file, 0, SEEK_SET) != 0) goto cleanup;
-
-        size_t file_len = (size_t)ending_offset;
-        config_text = xmalloc(file_len + 1);
-        if (fread(config_text, 1, file_len, config_file) != file_len) goto cleanup;
-        config_text[file_len] = '\0';
-
-        struct zzz_list config;
-        if (parse_config(&config, config_text)) {
-            *config_entries = config;
-            success = true;
-        } else goto cleanup;
-cleanup:
-        fclose(config_file);
-        free(config_text);
-        return success;
-    } else {
-        // couldn't access read config file, use default
-        // TODO use #embed or something
-        char *default_text =
-            "mime-pref=[(image/png image/jpeg image/.*) "
-            "(text/plain;charset=utf-8 UTF8_STRING text/plain TEXT text/.*)]";
-        struct zzz_list config;
-        bool parse_result = parse_config(&config, default_text);
-        assert(parse_result);
-        *config_entries = config;
+    if (config_file == NULL) {
+        *config_entries = zzz_list_empty;
         return true;
     }
+
+    bool success = false;
+    char *config_text = NULL;
+
+    if (fseek(config_file, 0, SEEK_END) != 0) goto cleanup;
+    long ending_offset = ftell(config_file);
+    if (ending_offset == -1) goto cleanup;
+    if (fseek(config_file, 0, SEEK_SET) != 0) goto cleanup;
+
+    size_t file_len = (size_t)ending_offset;
+    config_text = xmalloc(file_len + 1);
+    if (fread(config_text, 1, file_len, config_file) != file_len) goto cleanup;
+    config_text[file_len] = '\0';
+
+    struct zzz_list config;
+    if (parse_config(&config, config_text)) {
+        *config_entries = config;
+        success = true;
+    } else goto cleanup;
+cleanup:
+    fclose(config_file);
+    free(config_text);
+    return success;
 }
 
 static char *type_to_str(enum kv_value_type type) {

@@ -352,3 +352,19 @@ bool parse_config(struct zzz_list *keyvalues, const char *text) {
         return false;
     }
 }
+
+struct mime_pref mime_pref_default(void) {
+    char *default_text =
+        "[(image/png image/jpeg image/.*) "
+        "(text/plain;charset=utf-8 UTF8_STRING text/plain TEXT text/.*)]";
+    struct parse_state state = (struct parse_state) {
+        .text = default_text,
+        .text_len = strlen(default_text),
+        .idx = 0,
+        .line = 0,
+        .column = 0,
+    };
+    struct mime_pref mime_pref;
+    assert(parse_mime_prefs(&state, PARENT_NONE, &mime_pref));
+    return mime_pref;
+}
