@@ -6,4 +6,3 @@ struct getter_cb_data {
 };
 
 void getter_manager_callback(void *data, struct wl_objs *wl_objs);
-void list_stored_mimes(const char *set_label);
