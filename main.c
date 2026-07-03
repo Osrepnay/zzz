@@ -319,16 +319,20 @@ int main(int argc, char *argv[]) {
         "  delete  Delete an item from history.\n"
         "\n"
         "options:\n"
-        "  -h  Print this help message. Use with subcommand to get more specific options.\n";
+        "  -h  Print this help message. Use with subcommand to get more specific options.\n"
+        "  -v  Print the version.\n";
     int c;
     // we use +h here instead of just h because we don't want it interfering with subcommand opts
-    while ((c = getopt(argc, argv, "+h")) != -1) {
+    while ((c = getopt(argc, argv, "+hv")) != -1) {
         switch (c) {
         case '?':
             fputs(general_help, stderr);
             exit(EXIT_FAILURE);
         case 'h':
             fputs(general_help, stdout);
+            exit(EXIT_SUCCESS);
+        case 'v':
+            puts("0.1.0");
             exit(EXIT_SUCCESS);
         }
     }
