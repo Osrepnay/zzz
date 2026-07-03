@@ -71,8 +71,15 @@ static void source_send(void *data, void *source, const char *mime_type, int32_t
     ZZZ_LIST_FOREACH(*(struct zzz_list *)data, item_list) {
         struct clip_item *item = item_list->value;
         if (strcmp(item->mime, mime_type) == 0) {
-            // TODO partial writes?
-            write(fd, item->data, item->len);
+            size_t written = 0;
+            while (written < item->len) {
+                ssize_t res = write(fd, item->data + written, item->len - written);
+                if (res < 0) {
+                    fputs("warning: failed to send clipboard data\n", stderr);
+                    break;
+                }
+                written += res;
+            }
             break;
         }
     }
@@ -109,7 +116,6 @@ static void free_full_offer_void(void *full_offer_void) {
 static bool full_offers_remove(struct zzz_list *offer_mimes, struct zzz_list *list, void *offer) {
     if (offer == NULL) return false;
     ZZZ_LIST_FOREACH(*list, curr) {
-        // TODO is this legal? (comparing pointers for wl objects)
         struct full_offer *full_offer = curr->value;
         if (full_offer->offer == offer) {
             *offer_mimes = full_offer->mimes;

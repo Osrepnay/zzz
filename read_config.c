@@ -72,7 +72,7 @@ cleanup:
         // TODO use #embed or something
         char *default_text =
             "mime-pref=[(image/png image/jpeg image/.*) "
-            "(UTF8_STRING text/plain;charset=utf-8 text/.*)]";
+            "(text/plain;charset=utf-8 UTF8_STRING text/plain TEXT text/.*)]";
         struct zzz_list config;
         bool parse_result = parse_config(&config, default_text);
         assert(parse_result);

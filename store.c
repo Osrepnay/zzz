@@ -98,7 +98,6 @@ void store_init(void) {
 }
 
 // the index file acts as a lock for the whole directory
-// TODO this breaks on write_index because of the rename!!
 bool store_lock(void) {
     assert(store_dir != NULL);
     // it's already locked, noop

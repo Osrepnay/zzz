@@ -134,7 +134,6 @@ static char *mime_cleanup(const char *mime) {
 }
 
 // cleans up the mimetype and add extension if it's recognized
-// TODO do the extension thing
 static char *mk_file_path(const char *mime) {
     // POSIX filename character set
     const char *valid_chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-_.";
