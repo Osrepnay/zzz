@@ -14,7 +14,7 @@ For example, to use zzzclip with fuzzel, run `build/zzz get -- fuzzel --dmenu --
 
 Configuration is located at `$XDG_CONFIG_HOME/zzzclip`.
 I'll make proper documentation later, but for now, here's my config file:
-```
+```ini
 # maximum number of entries in history
 max-entries = 100
 
