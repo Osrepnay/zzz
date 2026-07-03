@@ -22,8 +22,15 @@ static void source_send(void *data, void *source, const char *mime_type, int32_t
     ZZZ_LIST_FOREACH(*(struct zzz_list *)data, item_list) {
         struct clip_item *item = item_list->value;
         if (strcmp(item->mime, mime_type) == 0) {
-            // TODO partial writes?
-            write(fd, item->data, item->len);
+            size_t written = 0;
+            while (written < item->len) {
+                ssize_t res = write(fd, item->data + written, item->len - written);
+                if (res < 0) {
+                    fputs("warning: failed to send clipboard data\n", stderr);
+                    break;
+                }
+                written += res;
+            }
             break;
         }
     }
