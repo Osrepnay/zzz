@@ -1,13 +1,13 @@
 # zzzclip
 
-A Wayland clipboard manager that supports
+A Wayland clipboard manager that supports:
 
 - Clipboard history
-- Customizable MIME type selection: choose which MIME types to keep (this means image support for all features!)
 - Clipboard persisting: restore the clipboard after the program providing it exits
-- Clipboard-as-files: Makes the current clipboard contents accessible via file
+- Clipboard-as-files: makes the current clipboard contents accessible via file
+- Customizable MIME type selection: choose which MIME types to keep (this means image support for all features!)
 
-POSIX C11, minimal dependencies. 
+POSIX C11, minimal dependencies. You know the drill.
 
 ## requirements
 
@@ -15,9 +15,9 @@ To run, you will need:
 
 - A Wayland compositor that supports either the ext-data-control or wlr-data-control protocols.  
   You can find a compatibility table [here](https://absurdlysuspicious.github.io/wayland-protocols-table/);
-  basically all major compositors ([except Mutter](https://gitlab.gnome.org/GNOME/mutter/-/work_items/3941)) support it. 
+  basically all major compositors ([except Mutter](https://gitlab.gnome.org/GNOME/mutter/-/work_items/3941)) support at least one. 
 
-## Installing
+## installation
 
 If you use Arch, zzzclip is [on the AUR](https://aur.archlinux.org/packages/zzzclip).
 Otherwise, static binaries are available from the [releases section](https://github.com/Osrepnay/zzzclip/releases/tag/v0.1.0).
@@ -31,8 +31,8 @@ To build, you will need:
 - `wayland-scanner` (also `wayland` on Arch, `libwayland-bin` on Debian/Ubuntu)
 - The normal stuff (`make`, a C compiler, etc.)
 
-To build, run `make build`.
-To install, run `make install` (might require `sudo`).
+To build, run `make build`.  
+To install, run `make install` (might require `sudo`).  
 To run tests, run `make check`.
 (Heads up, this will wipe your clipboard and fill your history with junk if you have a manager running!)
 
@@ -49,7 +49,21 @@ zzzclip list | rofi -dmenu -display-columns 2 -column 1 | cut -f1 | xargs zzzcli
 zzzclip list | wofi --dmenu --pre-display-cmd "echo '%s' | cut -f2" -k /dev/null | cut -f1 | xargs zzzclip get 
 ```
 
+The clipboard-as-files feature will, by default, put the files in `$XDG_RUNTIME_DIR/zzzclip`.
+On my system, this is located at `/run/user/1000/zzzclip`.
+To make this more accessible, you can override `ZZZCLIP_SYMLINK_PATH` to change the directory,
+create a symlink (e.g. `ln -s $XDG_RUNTIME_DIR/zzzclip ~/clipboard`),
+or create a bookmark in your file manager.
+If your file manager is GTK-based, this should carry over to other GTK-based file managers and file pickers as well,
+like in your browser's upload window.
+
 ## configuration
+
+zzzclip respects the environment variables `ZZZCLIP_CONFIG_PATH`, `ZZZCLIP_STORE_PATH`, and `ZZZCLIP_SYMLINK_PATH`
+to override the config file location, history directory, and clipboard-as-file directory, respectively.
+By default, configuration is located at `$XDG_CONFIG_HOME/zzzclip`,
+history at `$XDG_STATE_HOME/zzzclip`,
+and clipboard-as-files at `$XDG_RUNTIME_DIR/zzzclip`.
 
 Configuration is located at `$XDG_CONFIG_HOME/zzzclip`.
 I'll make proper documentation later, but for now, here's the default config file:
