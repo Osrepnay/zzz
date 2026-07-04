@@ -1,19 +1,58 @@
 # zzzclip
 
-## PROBABLY SLIGHTLY BROKEN, USE AT YOUR OWN RISK
+A Wayland clipboard manager that supports
 
-A clipboard manager that supports customizable mimetype selection (e.g. prefer copying images over or in addition to html) and clipboard persisting (replacing the clipboard after program exit).
+- Clipboard history
+- Customizable MIME type selection: choose which MIME types to keep (this means image support for all features!)
+- Clipboard persisting: restore the clipboard after the program providing it exits
+- Clipboard-as-files: Makes the current clipboard contents accessible via file
 
-To build, run `make build`. Executable at `build/zzz`.
+POSIX C11, minimal dependencies. 
 
-To run the main daemon, run `build/zzz`.
+## requirements
 
-To run a selector on the clipboard history, run `build/zzz get -- <program>`.
-`get` expects a dmenu-style program which takes in newline-separated entries and returns the **index** of the selected entry.
-For example, to use zzzclip with fuzzel, run `build/zzz get -- fuzzel --dmenu --index`
+To run, you will need:
+
+- A Wayland compositor that supports either the ext-data-control or wlr-data-control protocols.  
+  You can find a compatibility table [here](https://absurdlysuspicious.github.io/wayland-protocols-table/);
+  basically all major compositors ([except Mutter](https://gitlab.gnome.org/GNOME/mutter/-/work_items/3941)) support it. 
+
+## Installing
+
+If you use Arch, zzzclip is [on the AUR](https://aur.archlinux.org/packages/zzzclip).
+Otherwise, static binaries are available from the [releases section](https://github.com/Osrepnay/zzzclip/releases/tag/v0.1.0).
+Alternatively, follow the instructions below and build it yourself.
+
+## building
+
+To build, you will need:
+
+- Wayland client libraries (`wayland` on Arch, `libwayland-client` on Debian/Ubuntu)
+- `wayland-scanner` (also `wayland` on Arch, `libwayland-bin` on Debian/Ubuntu)
+- The normal stuff (`make`, a C compiler, etc.)
+
+To build, run `make build`.
+To install, run `make install` (might require `sudo`).
+To run tests, run `make check`.
+(Heads up, this will wipe your clipboard and fill your history with junk if you have a manager running!)
+
+## usage
+
+To start the main process, run `zzzclip daemon`.
+More detailed instructions can be found by using `-h` on a specific subcommand
+(`zzzclip daemon -h`, `zzzclip list -h`, `zzzclip get -h`, `zzzclip delete -h`).  
+
+To integrate zzzclip with a selector program like fuzzel or rofi:
+```
+zzzclip list | fuzzel --dmenu --with-nth=2 --accept-nth=1 | xargs zzzclip get
+zzzclip list | rofi -dmenu -display-columns 2 -column 1 | cut -f1 | xargs zzzclip get
+zzzclip list | wofi --dmenu --pre-display-cmd "echo '%s' | cut -f2" -k /dev/null | cut -f1 | xargs zzzclip get 
+```
+
+## configuration
 
 Configuration is located at `$XDG_CONFIG_HOME/zzzclip`.
-I'll make proper documentation later, but for now, here's my config file:
+I'll make proper documentation later, but for now, here's the default config file:
 ```ini
 # maximum number of entries in history
 max-entries = 100
@@ -21,29 +60,27 @@ max-entries = 100
 # maximum bytes for a clipboard item (per-mimetype, not per-copy)
 max-item-bytes = 10000000
 
-# maximum characters to show to the `zzz get` program
+# maximum characters to show in clipboard previews (`zzzclip list`, some parts of `zzzclip get`)
 max-preview = 1000
 
-# whether to replace the clipboard contents when it's cleared (like if a program exits)
+# whether to replace the clipboard contents when it's cleared, like if a program exits
 replace-clipboard-on-clear = true
 
-# determines which mimetypes zzzclip will request and store
-# [] stores every mimetype matched inside
-# () stores the first mimetype matched inside
+# determines which MIME types zzzclip will request and store
+# [] stores every MIME type matched inside
+# () stores the first set of MIME types matched inside
 # regexes behave differently based on whether its parent is [] or (): every match for [], first match for ()
+# all regexes are prefixed with ^ and suffixed with $ and are case-insensitive
+# example: if the current clipboard offers image/webp, image/jpeg, and text/html, zzzclip will store
+# image/webp and text/html with this config
 mime-pref = [
     (image/png image/webp image/jpeg image/.*)
-    (UTF8_STRING text/plain;charset=utf-8 TEXT text/plain text/.*)
+    (text/plain;charset=utf-8 UTF8_STRING text/plain TEXT text/.*)
 ]
 
-# creates files for the current clipboard in $XDG_RUNTIME_DIR/zzzclip
+# makes the clipboard accessible via file in $XDG_RUNTIME_DIR/zzzclip
 clipboard-as-files = true
 ```
-
-## dependencies
-
-- wayland client libraries (dev?)
-- a compositor that supports the wlr-data-control protocol
 
 ## todo
 
@@ -52,6 +89,6 @@ clipboard-as-files = true
 - fallback in mime preferences if entry too large
 - icon support
 
-## warning
+## thanks
 
-I don't know what I'm doing w.r.t. Wayland, use at your own risk!
+wl-clipboard, fuzzel, cliphist, clipvault, fuzzel for inspiration/guidance
