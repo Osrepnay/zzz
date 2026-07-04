@@ -1,21 +1,45 @@
-C=gcc
-CFLAGS=-O2 -Ibuild/include -Wall -Wextra -Wpedantic -std=c11 -g
+.POSIX:
 
-.PHONY=clean debug check
+CC=cc
+CFLAGS_EXTRA=
+CFLAGS=-O2 -Ibuild/include -Wall -Wextra -Wpedantic -std=c11 -g $(CFLAGS_EXTRA)
+# set these in command line for debug mode
+DESTDIR=
+PREFIX=/usr
+
+.PHONY=clean check uninstall
+
+build: build/zzzclip
 
 check: build
 	test/test-all.sh
 
-build: build/zzzclip
+install: build
+	install -Dm755 build/zzzclip $(DESTDIR)$(PREFIX)/bin
 
-debug: CFLAGS += -O0 -fsanitize=address
-debug: build
+uninstall:
+	rm $(DESTDIR)$(PREFIX)/bin/zzzclip
 
 clean:
 	rm -r build/*
 
-build/zzzclip: main.c build/ext-data-control-protocol.o build/wlr-data-control-protocol.o build/util.o build/xmalloc.o build/zzz_list.o build/read_config.o build/parse_config.o build/store.o build/symlink_manager.o build/data_control_wrapper.o build/daemon.o build/getter.o build/display.o build/registry.o
-	$(CC) $(CFLAGS) -lwayland-client -lm -o build/zzzclip main.c build/*.o
+build/zzzclip: main.c \
+		build/ext-data-control-protocol.o \
+		build/wlr-data-control-protocol.o \
+		build/util.o \
+		build/xmalloc.o \
+		build/zzz_list.o \
+		build/read_config.o \
+		build/parse_config.o \
+		build/store.o \
+		build/symlink_manager.o \
+		build/data_control_wrapper.o \
+		build/daemon.o \
+		build/getter.o \
+		build/display.o \
+		build/registry.o
+	@# cflags at the end... awful.... do it for linker flags
+	$(CC) -o build/zzzclip main.c build/*.o -lwayland-client $(CFLAGS)
 
 build/daemon.o: daemon.c daemon.h
 	$(CC) $(CFLAGS) -c -o build/daemon.o daemon.c

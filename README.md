@@ -45,11 +45,12 @@ clipboard-as-files = true
 - wayland client libraries (dev?)
 - a compositor that supports the wlr-data-control protocol
 
-## todo (mostly for me)
+## todo
 
 - better error handling
-- deduplicating
-- fallback if entry too large (?)
+- automatic deduplicating
+- fallback in mime preferences if entry too large
+- icon support
 
 ## warning
 
