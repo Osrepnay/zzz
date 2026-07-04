@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include <wayland-client-core.h>
+#include <wayland-client.h>
 
 #include "data_control_wrapper.h"
 #include "wlr-data-control-protocol.h"
