@@ -1,9 +1,11 @@
+<img src="zzzbanner.png" height=20px>
+
 # zzzclip
 
 A Wayland clipboard manager that supports:
 
 - Clipboard history
-- Clipboard persisting: restore the clipboard after the program providing it exits
+- Clipboard persisting: restore the clipboard after the program providing it exits; this is lazy, meaning zzzclip won't replace the selection until it needs to
 - Clipboard-as-files: makes the current clipboard contents accessible via file
 - Customizable MIME type selection: choose which MIME types to keep (this means image support for all features!)
 
