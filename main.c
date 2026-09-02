@@ -112,7 +112,7 @@ static void subcommand_list(char *const *argv, int argc) {
         "\n"
         "options:\n"
         "  -h  Print this help message.\n"
-        "  -v  Verbose mode.";
+        "  -v  Verbose mode.\n";
     bool verbose = false;
     bool failed = false;
     int c;
